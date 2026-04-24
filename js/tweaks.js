@@ -667,8 +667,97 @@ function hideControlsOnSpeakerNotes() {
         console.log('Speaker Notes Connected, hiding controls');
         document.querySelector('.controls')?.classList.add('hide-when-notes');
         document.querySelector('.progress')?.classList.add('hide-when-notes');
+        injectSpeakerNotesFontSizeControls();
       }
     });
+}
+
+function injectSpeakerNotesFontSizeControls() {
+  try {
+    const win = window.open('', 'reveal.js - Notes');
+    if (!win || win.closed) return;
+    if (win.document.getElementById('notes-font-size')) return;
+
+    const style = win.document.createElement('style');
+    style.textContent = `
+      #notes-font-size {
+        position: absolute;
+        top: 10px;
+        right: 160px;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      #notes-font-size button {
+        height: 34px;
+        padding: 0 10px;
+        background: rgba(220,220,220,0.8);
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        color: #222;
+        line-height: 34px;
+        font-family: Helvetica, sans-serif;
+      }
+      #notes-font-size button:hover { background: rgba(220,220,220,1); }
+      #notes-font-size button:disabled { opacity: 0.4; cursor: default; }
+      #notes-font-size .nfs-label {
+        height: 34px;
+        line-height: 34px;
+        padding: 0 6px;
+        background: rgba(220,220,220,0.8);
+        font-size: 13px;
+        font-family: Helvetica, sans-serif;
+        min-width: 38px;
+        text-align: center;
+        color: #222;
+      }
+    `;
+    win.document.head.appendChild(style);
+
+    const container = win.document.createElement('div');
+    container.id = 'notes-font-size';
+    container.innerHTML = `
+      <button id="nfs-decrease" title="Decrease notes font size">A−</button>
+      <span class="nfs-label" id="nfs-label">18px</span>
+      <button id="nfs-increase" title="Increase notes font size">A+</button>
+    `;
+    win.document.body.appendChild(container);
+
+    const MIN = 12, MAX = 60, STEP = 2, KEY = 'reveal-speaker-notes-fontsize';
+    const speakerControls = win.document.querySelector('#speaker-controls');
+    const label = win.document.getElementById('nfs-label');
+    const decBtn = win.document.getElementById('nfs-decrease');
+    const incBtn = win.document.getElementById('nfs-increase');
+
+    let size = 18;
+    try {
+      const stored = parseInt(win.localStorage.getItem(KEY));
+      if (!isNaN(stored) && stored >= MIN && stored <= MAX) size = stored;
+    } catch {}
+
+    function apply() {
+      if (speakerControls) speakerControls.style.fontSize = size + 'px';
+      label.textContent = size + 'px';
+      decBtn.disabled = size <= MIN;
+      incBtn.disabled = size >= MAX;
+      try { win.localStorage.setItem(KEY, size); } catch {}
+    }
+
+    decBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      if (size > MIN) { size = Math.max(MIN, size - STEP); apply(); }
+    });
+    incBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      if (size < MAX) { size = Math.min(MAX, size + STEP); apply(); }
+    });
+
+    apply();
+  } catch (err) {
+    console.warn('Could not inject speaker notes font size controls:', err);
+  }
 }
 
 function doubleClickFullScreen() {
