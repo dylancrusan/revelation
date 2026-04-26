@@ -11,6 +11,31 @@ import { revealTweaks } from './tweaks.js';
 import { contextMenu, sendPresentationToPeers, closePresentationsOnPeers } from './contextmenu.js';
 import { pluginLoader } from './pluginloader.js';
 
+// Pan CSS and handler for speaker-view overview panning (rv-pan / rv-click messages).
+// These are sent from the speaker notes window (about:blank origin) via postMessage.
+(function() {
+  var s = document.createElement('style');
+  s.textContent =
+    '.reveal.overview .slides{translate:var(--rv-pan-x,0px) var(--rv-pan-y,0px);will-change:translate;transition:translate 40ms linear;}' +
+    '.reveal.overview{overflow:visible!important;}';
+  document.head.appendChild(s);
+
+  window.addEventListener('message', function(event) {
+    var data;
+    try { data = JSON.parse(event.data); } catch(e) { return; }
+    if (!data) return;
+    if (data.type === 'rv-pan') {
+      document.documentElement.style.setProperty('--rv-pan-x', data.x + 'px');
+      document.documentElement.style.setProperty('--rv-pan-y', data.y + 'px');
+    } else if (data.type === 'rv-click') {
+      var x = data.fx * window.innerWidth;
+      var y = data.fy * window.innerHeight;
+      var el = document.elementFromPoint(x, y);
+      if (el) el.click();
+    }
+  });
+})();
+
 (async () => {
 
 window.RevelationSocketIOClient = socketIoClient;

@@ -25,6 +25,7 @@ export function revealTweaks(deck) {
       updateFixedOverlayVisibility(deck);
     });
     deck.on('pdf-ready', () => {
+      loadAllSlideBackgrounds(deck);
       enforcePdfPageBackground();
       fixFitMediaPdfLayout(deck);
       window.setTimeout(() => {
@@ -61,6 +62,13 @@ export function revealTweaks(deck) {
     hideControlsOnSpeakerNotes();
     doubleClickFullScreen();
     hideCursorOnIdle();
+}
+
+function loadAllSlideBackgrounds(deck) {
+  if (typeof deck.loadSlide !== 'function') return;
+  document.querySelectorAll('.reveal .slides section').forEach(slide => {
+    deck.loadSlide(slide);
+  });
 }
 
 function fixFitMediaPdfLayout(deck) {
