@@ -107,6 +107,7 @@ export async function loadAndPreprocessMarkdown(deck, selectedFile = null) {
   const { metadata, content } = extractFrontMatter(normalizedMarkdown);
   const contentWithBlankSlide = `${content}\n\n---\n\n`;
   const forceControls = urlParams.get('forceControls') === '1';
+  const builderPreviewMode = urlParams.get('builderPreview') === '1';
   const yamlScrollSpeed = Number.parseFloat(metadata.scrollspeed);
 
   // Publish runtime-only values that other views consume, e.g. teleprompter notes scroll speed.
@@ -320,6 +321,172 @@ export async function loadAndPreprocessMarkdown(deck, selectedFile = null) {
       el.removeAttribute('data-parentfragment');
     });
   });
+
+  // Extract range-based auto-slide config before passing to Reveal (these are custom fields Reveal doesn't know).
+  const rawRangeStart = Number(config.autoSlideRangeStart);
+  const rawRangeEnd = Number(config.autoSlideRangeEnd);
+  const rawRangeInterval = Number(config.autoSlideRangeInterval);
+  const autoSlideRangeStart = Number.isFinite(rawRangeStart) && rawRangeStart >= 1 ? Math.round(rawRangeStart) : null;
+  const autoSlideRangeEnd = Number.isFinite(rawRangeEnd) && rawRangeEnd >= 1 ? Math.round(rawRangeEnd) : null;
+  const autoSlideRangeInterval = Number.isFinite(rawRangeInterval) && rawRangeInterval > 0 ? Math.round(rawRangeInterval) : 5000;
+  delete config.autoSlideRangeStart;
+  delete config.autoSlideRangeEnd;
+  delete config.autoSlideRangeInterval;
+
+  // Wire up range-based auto-slide when a valid start/end pair is configured.
+  // Skip in any builder preview mode (both the main forceControls preview and the canvas editor iframe).
+  if (!builderPreviewMode && autoSlideRangeStart !== null && autoSlideRangeEnd !== null && autoSlideRangeStart <= autoSlideRangeEnd) {
+    let rangeActive = false;
+    let rangePaused = false;
+
+    // Navigate to a 1-based linear slide index, handling both horizontal and vertical slide structures.
+    const slideToLinear = (oneBasedIndex) => {
+      const target = oneBasedIndex - 1;
+      const wrapper = document.querySelector('.reveal .slides');
+      if (!wrapper) return;
+      const hSlides = wrapper.querySelectorAll(':scope > section');
+      let count = 0;
+      for (let h = 0; h < hSlides.length; h++) {
+        const vSlides = hSlides[h].querySelectorAll(':scope > section');
+        if (vSlides.length === 0) {
+          if (count === target) { deck.slide(h, 0, 0); return; }
+          count++;
+        } else {
+          for (let v = 0; v < vSlides.length; v++) {
+            if (count === target) { deck.slide(h, v, 0); return; }
+            count++;
+          }
+        }
+      }
+    };
+
+    const activateRange = () => {
+      rangeActive = true;
+      rangePaused = false;
+      deck.configure({ autoSlide: autoSlideRangeInterval, autoSlideStoppable: true });
+    };
+
+    const deactivateRange = () => {
+      rangeActive = false;
+      rangePaused = false;
+      deck.configure({ autoSlide: 0 });
+    };
+
+    // User paused — keep autoSlide configured so the button stays visible; just track the paused state.
+    deck.on('autoslidepaused', () => {
+      if (rangeActive) {
+        rangeActive = false;
+        rangePaused = true;
+      }
+    });
+
+    // User clicked play — resume from current position if still in range, otherwise fully deactivate.
+    deck.on('autoslideresumed', () => {
+      if (rangePaused) {
+        const current = deck.getSlidePastCount() + 1;
+        if (current >= autoSlideRangeStart && current <= autoSlideRangeEnd) {
+          rangeActive = true;
+          rangePaused = false;
+        } else {
+          deactivateRange();
+        }
+      }
+    });
+
+    // Activate immediately if the presentation opens on the range start slide.
+    deck.on('ready', () => {
+      if (deck.getSlidePastCount() + 1 === autoSlideRangeStart) activateRange();
+    });
+
+    deck.on('slidechanged', (event) => {
+      const slide = deck.getSlidePastCount(event.currentSlide) + 1; // 1-based linear slide number
+      if (rangePaused) {
+        // While paused, hide the button only if user navigates outside the range.
+        if (slide < autoSlideRangeStart || slide > autoSlideRangeEnd) deactivateRange();
+        return;
+      }
+      if (slide === autoSlideRangeStart && !rangeActive) {
+        activateRange();
+      } else if (rangeActive && slide > autoSlideRangeEnd) {
+        // Auto-advance went past end — loop back to range start.
+        slideToLinear(autoSlideRangeStart);
+      } else if (rangeActive && slide < autoSlideRangeStart) {
+        // User navigated before the range start — give up control.
+        deactivateRange();
+      }
+    });
+  }
+
+  // Extract column-based auto-slide config (for multi-column presentations; tracks horizontal index).
+  const rawColStart = Number(config.autoSlideColumnStart);
+  const rawColEnd = Number(config.autoSlideColumnEnd);
+  const rawColInterval = Number(config.autoSlideColumnInterval);
+  const autoSlideColumnStart = Number.isFinite(rawColStart) && rawColStart >= 1 ? Math.round(rawColStart) : null;
+  const autoSlideColumnEnd = Number.isFinite(rawColEnd) && rawColEnd >= 1 ? Math.round(rawColEnd) : null;
+  const autoSlideColumnInterval = Number.isFinite(rawColInterval) && rawColInterval > 0 ? Math.round(rawColInterval) : 5000;
+  delete config.autoSlideColumnStart;
+  delete config.autoSlideColumnEnd;
+  delete config.autoSlideColumnInterval;
+
+  if (!builderPreviewMode && autoSlideColumnStart !== null && autoSlideColumnEnd !== null && autoSlideColumnStart <= autoSlideColumnEnd) {
+    let colRangeActive = false;
+    let colRangePaused = false;
+
+    const activateColRange = () => {
+      colRangeActive = true;
+      colRangePaused = false;
+      deck.configure({ autoSlide: autoSlideColumnInterval, autoSlideStoppable: true });
+    };
+
+    const deactivateColRange = () => {
+      colRangeActive = false;
+      colRangePaused = false;
+      deck.configure({ autoSlide: 0 });
+    };
+
+    // User paused — keep autoSlide configured so the button stays visible; just track the paused state.
+    deck.on('autoslidepaused', () => {
+      if (colRangeActive) {
+        colRangeActive = false;
+        colRangePaused = true;
+      }
+    });
+
+    // User clicked play — resume from current column if still in range, otherwise fully deactivate.
+    deck.on('autoslideresumed', () => {
+      if (colRangePaused) {
+        const col = deck.getState().indexh + 1;
+        if (col >= autoSlideColumnStart && col <= autoSlideColumnEnd) {
+          colRangeActive = true;
+          colRangePaused = false;
+        } else {
+          deactivateColRange();
+        }
+      }
+    });
+
+    deck.on('ready', () => {
+      if (deck.getState().indexh + 1 === autoSlideColumnStart) activateColRange();
+    });
+
+    deck.on('slidechanged', (event) => {
+      const col = event.indexh + 1; // 1-based column number
+      if (colRangePaused) {
+        // While paused, hide the button only if user navigates outside the range.
+        if (col < autoSlideColumnStart || col > autoSlideColumnEnd) deactivateColRange();
+        return;
+      }
+      if (col === autoSlideColumnStart && !colRangeActive) {
+        activateColRange();
+      } else if (colRangeActive && col > autoSlideColumnEnd) {
+        // Auto-advance moved past the end column — loop back to start of first column in range.
+        deck.slide(autoSlideColumnStart - 1, 0, 0);
+      } else if (colRangeActive && col < autoSlideColumnStart) {
+        // User navigated left of the range start — give up control.
+        deactivateColRange();
+      }
+    });
+  }
 
   // Hand off to Reveal after all markdown, DOM, and runtime config preparation is complete.
   deck.initialize(config);
