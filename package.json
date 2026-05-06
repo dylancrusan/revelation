@@ -31,7 +31,7 @@
     "make": "node scripts/make-presentation.js",
     "addimages": "node scripts/add-images.mjs",
     "llm:dump": "node scripts/dump-for-llm.js revelation_file_summary.txt",
-    "postinstall": "node scripts/init-presentations.js",
+    "postinstall": "patch-package && node scripts/init-presentations.js",
     "init-presentations": "node scripts/init-presentations.js",
     "serve": "npm-run-all --parallel watch:theme vite:serve",
     "tests": "node tests/run-tests.cjs",
@@ -40,6 +40,7 @@
   "devDependencies": {
     "concurrently": "^9.2.1",
     "esbuild": "^0.27.0",
+    "patch-package": "^8.0.1",
     "sass": "^1.97.3"
   }
 }
