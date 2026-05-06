@@ -1,7 +1,10 @@
 
 export function revealTweaks(deck) {
 
-    const isThumbnail = window.location.href.includes('backgroundTransition=none');
+    // `backgroundTransition=none` appears in both thumbnail iframes (slide sorter) and
+    // speaker-view receiver iframes. Only treat it as a thumbnail when `receiver` is absent.
+    const isSpeakerViewReceiver = /[?&]receiver([&=]|$)/i.test(window.location.search);
+    const isThumbnail = !isSpeakerViewReceiver && window.location.href.includes('backgroundTransition=none');
 
     const readyTweaks = () => {
       applyStackAttributes(deck);
