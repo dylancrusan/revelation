@@ -36,6 +36,35 @@ import { pluginLoader } from './pluginloader.js';
   });
 })();
 
+// Direct wheel panning for the main presentation window overview (no iframe boundary here).
+(function() {
+  var panX = 0, panY = 0, rafId = null;
+
+  function applyPan() {
+    rafId = null;
+    document.documentElement.style.setProperty('--rv-pan-x', panX + 'px');
+    document.documentElement.style.setProperty('--rv-pan-y', panY + 'px');
+  }
+
+  function resetPan() {
+    panX = 0; panY = 0;
+    document.documentElement.style.setProperty('--rv-pan-x', '0px');
+    document.documentElement.style.setProperty('--rv-pan-y', '0px');
+  }
+
+  document.addEventListener('overviewshown', resetPan);
+  document.addEventListener('overviewhidden', resetPan);
+
+  window.addEventListener('wheel', function(event) {
+    if (!document.querySelector('.reveal.overview')) return;
+    event.preventDefault();
+    panX -= event.deltaX;
+    panY -= event.deltaY;
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(applyPan);
+  }, { passive: false });
+})();
+
 (async () => {
 
 window.RevelationSocketIOClient = socketIoClient;
