@@ -16,8 +16,7 @@ import { pluginLoader } from './pluginloader.js';
 (function() {
   var s = document.createElement('style');
   s.textContent =
-    '.reveal.overview .slides{translate:var(--rv-pan-x,0px) var(--rv-pan-y,0px);will-change:translate;transition:translate 40ms linear;}' +
-    '.reveal.overview{overflow:visible!important;}';
+    '.reveal.overview{translate:var(--rv-pan-x,0px) var(--rv-pan-y,0px);scale:var(--rv-zoom,1);will-change:translate,scale;transition:translate 40ms linear,scale 40ms linear;overflow:visible!important;}';
   document.head.appendChild(s);
 
   window.addEventListener('message', function(event) {
@@ -36,33 +35,75 @@ import { pluginLoader } from './pluginloader.js';
   });
 })();
 
-// Direct wheel panning for the main presentation window overview (no iframe boundary here).
+// Direct wheel panning/zooming for the main presentation window overview (no iframe boundary here).
 (function() {
-  var panX = 0, panY = 0, rafId = null;
+  var panX = 0, panY = 0, zoom = 1, rafId = null;
+  var MIN_ZOOM = 0.2, MAX_ZOOM = 4;
 
-  function applyPan() {
+  function applyTransform() {
     rafId = null;
     document.documentElement.style.setProperty('--rv-pan-x', panX + 'px');
     document.documentElement.style.setProperty('--rv-pan-y', panY + 'px');
+    document.documentElement.style.setProperty('--rv-zoom', zoom);
   }
 
-  function resetPan() {
-    panX = 0; panY = 0;
+  function resetAll() {
+    panX = 0; panY = 0; zoom = 1;
     document.documentElement.style.setProperty('--rv-pan-x', '0px');
     document.documentElement.style.setProperty('--rv-pan-y', '0px');
+    document.documentElement.style.setProperty('--rv-zoom', '1');
   }
 
-  document.addEventListener('overviewshown', resetPan);
-  document.addEventListener('overviewhidden', resetPan);
+  function scheduleApply() {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(applyTransform);
+  }
+
+  document.addEventListener('overviewshown', resetAll);
+  document.addEventListener('overviewhidden', resetAll);
 
   window.addEventListener('wheel', function(event) {
     if (!document.querySelector('.reveal.overview')) return;
     event.preventDefault();
-    panX -= event.deltaX;
-    panY -= event.deltaY;
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = requestAnimationFrame(applyPan);
+
+    if (event.ctrlKey || event.metaKey) {
+      // Zoom toward cursor. Mac trackpad pinch-to-zoom also fires as ctrlKey+wheel.
+      var delta = event.deltaY;
+      if (event.deltaMode === 1) delta *= 30;
+      if (event.deltaMode === 2) delta *= 300;
+
+      var newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * Math.pow(0.994, delta)));
+      var r = newZoom / zoom;
+      var cx = event.clientX;
+      var cy = event.clientY;
+      // viewport_x = zoom*(local - vw/2) + pan + vw/2; solve for pan that keeps cursor fixed.
+      panX = panX * r + (cx - window.innerWidth / 2) * (1 - r);
+      panY = panY * r + (cy - window.innerHeight / 2) * (1 - r);
+      zoom = newZoom;
+    } else {
+      panX -= event.deltaX;
+      panY -= event.deltaY;
+    }
+
+    scheduleApply();
   }, { passive: false });
+
+  window.addEventListener('keydown', function(event) {
+    if (!document.querySelector('.reveal.overview')) return;
+    var isPlus = event.key === '+' || event.key === '=';
+    var isMinus = event.key === '-';
+    if (!isPlus && !isMinus) return;
+    event.preventDefault();
+
+    var newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * (isPlus ? 1.2 : 1 / 1.2)));
+    var r = newZoom / zoom;
+    // Zoom toward viewport center: cursor offset is 0, so pan just scales.
+    panX *= r;
+    panY *= r;
+    zoom = newZoom;
+
+    scheduleApply();
+  });
 })();
 
 (async () => {
