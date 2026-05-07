@@ -494,6 +494,7 @@ function presentationIndexPlugin() {
       ensurePeerCommandServer(server, configPath);
       ensurePresenterPluginsServer(server);
       ensureRevealRemoteServer(server);
+      server.middlewares.use('/_remote/ui', serveStatic(path.resolve(__dirname, 'remote-ui'), { fallthrough: true }));
       server.middlewares.use('/_remote/ui', serveStatic(path.resolve(__dirname, 'node_modules/reveal.js-remote/server-ui'), { fallthrough: true }));
       server.middlewares.use((req, res, next) => {
         if (!req.url?.startsWith('/peer/')) return next();
