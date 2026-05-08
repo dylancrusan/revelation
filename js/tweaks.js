@@ -802,6 +802,31 @@ function injectSpeakerNotesFontSizeControls() {
         text-align: center;
         color: #222;
       }
+      .speaker-controls-notes { position: relative; }
+      #nfs-invert {
+        position: absolute;
+        top: 8px;
+        right: 15px;
+        height: 28px;
+        padding: 0 10px;
+        background: rgba(220,220,220,0.8);
+        border: none;
+        cursor: pointer;
+        font-size: 13px;
+        color: #222;
+        line-height: 28px;
+        font-family: Helvetica, sans-serif;
+        z-index: 10;
+      }
+      #nfs-invert:hover { background: rgba(220,220,220,1); }
+      body.nfs-inverted .speaker-controls-notes {
+        filter: invert(1) !important;
+        background-color: #d7d7d7 !important;
+      }
+      body.nfs-inverted .speaker-controls-notes [style*="color"],
+      body.nfs-inverted .speaker-controls-notes [color] {
+        filter: invert(1) !important;
+      }
     `;
     win.document.head.appendChild(style);
 
@@ -813,6 +838,13 @@ function injectSpeakerNotesFontSizeControls() {
       <button id="nfs-increase" title="Increase notes font size">A+</button>
     `;
     win.document.body.appendChild(container);
+
+    const invertBtn = win.document.createElement('button');
+    invertBtn.id = 'nfs-invert';
+    invertBtn.title = 'Invert colors';
+    invertBtn.textContent = 'Invert Colors';
+    const notesSection = win.document.querySelector('.speaker-controls-notes');
+    if (notesSection) notesSection.appendChild(invertBtn);
 
     const MIN = 12, MAX = 60, STEP = 2, KEY = 'reveal-speaker-notes-fontsize';
     const speakerControls = win.document.querySelector('#speaker-controls');
@@ -843,6 +875,22 @@ function injectSpeakerNotesFontSizeControls() {
       if (size < MAX) { size = Math.min(MAX, size + STEP); apply(); }
     });
 
+    const INVERT_KEY = 'reveal-speaker-notes-inverted';
+    let inverted = false;
+    try { inverted = win.localStorage.getItem(INVERT_KEY) === '1'; } catch {}
+
+    function applyInvert() {
+      win.document.body.classList.toggle('nfs-inverted', inverted);
+      try { win.localStorage.setItem(INVERT_KEY, inverted ? '1' : '0'); } catch {}
+    }
+
+    invertBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      inverted = !inverted;
+      applyInvert();
+    });
+
+    applyInvert();
     apply();
   } catch (err) {
     console.warn('Could not inject speaker notes font size controls:', err);
