@@ -1,6 +1,12 @@
---- a/plugin/remote.js
-+++ b/plugin/remote.js
-@@ -11,10 +11,18 @@
+diff --git a/node_modules/reveal.js-remote/plugin/remote.js b/node_modules/reveal.js-remote/plugin/remote.js
+index df1bff6..13f58e4 100644
+--- a/node_modules/reveal.js-remote/plugin/remote.js
++++ b/node_modules/reveal.js-remote/plugin/remote.js
+@@ -7,13 +7,22 @@ let beforeSyncHook = null;
+ 
+ let multiplexPaused = false;
+ let _sendMultiplexStateRef = null;
++let _socket = null;
  
  
  const init = (reveal) => {
@@ -19,7 +25,15 @@
  
      const listeners = {};
  
-@@ -107,6 +115,7 @@
+@@ -48,6 +57,7 @@ const init = (reveal) => {
+ 
+         console.log("Remote: connecting to", pluginConfig.server + pluginConfig.path);
+         socket = io.connect(pluginConfig.server, {path: pluginConfig.path});
++        _socket = socket;
+ 
+         socket.on("connect_error", function (err) {
+             console.warn("Remote: Could not connect to socket.io-remote server", err);
+@@ -105,6 +115,7 @@ const init = (reveal) => {
          }
  
          createPopup();
@@ -27,13 +41,21 @@
  
          console.info("Remote: Starting connection");
      }
-@@ -188,15 +197,130 @@
-             image.src = imageData;
-             link.href = url;
-             div.style.display = "flex";
-+        }
-+    }
-+
+@@ -115,7 +126,9 @@ const init = (reveal) => {
+         if (config.remoteMultiplexId === undefined) {
+             const data = {
+                 type: "presenter",
+-                shareUrl: pluginConfig.shareUrl
++                shareUrl: typeof pluginConfig.normalizeShareUrl === "function"
++                    ? pluginConfig.normalizeShareUrl(pluginConfig.shareUrl)
++                    : pluginConfig.shareUrl
+             };
+ 
+             if (window.localStorage) {
+@@ -187,12 +200,147 @@ const init = (reveal) => {
+         }
+     }
+ 
 +    function createSpeakerPopup() {
 +        const body = document.getElementsByTagName("body")[0];
 +        const inner = document.createElement("div");
@@ -97,6 +119,11 @@
 +        // the IPC round-trip doesn't corrupt the next-slide index.
 +        const indices = reveal.getIndices();
 +        const routes = reveal.availableRoutes();
++        const currF = typeof indices.f === 'number' ? indices.f : -1;
++
++        const currentSlide = reveal.getCurrentSlide?.();
++        const allFragEls = currentSlide ? Array.from(currentSlide.querySelectorAll('.fragment')) : [];
++        const hasUnshownFragments = allFragEls.some(el => !el.classList.contains('visible'));
 +
 +        capturingPreview = true;
 +        try {
@@ -110,22 +137,37 @@
 +                const currH = indices.h || 0;
 +                const currV = indices.v || 0;
 +                try {
++                    // Pass fragment index so current thumbnail matches live fragment state.
 +                    const b64 = await window.electronAPI.captureNextSlide(
-+                        window.location.href, currH, currV
++                        window.location.href, currH, currV, currF
 +                    );
 +                    if (b64) current = 'data:image/jpeg;base64,' + b64;
 +                } catch (e) {
 +                    console.warn('Remote: current slide capture failed', e);
 +                }
 +
-+                if (routes.down || routes.right) {
++                if (hasUnshownFragments) {
++                    // Next thumbnail: show the NEXT fragment step (one step ahead of current).
++                    // currF+1 advances exactly one fragment so the preview matches what the
++                    // audience will see on the next advance, not the fully-built final state.
++                    try {
++                        const b64 = await window.electronAPI.captureNextSlide(
++                            window.location.href, currH, currV, currF + 1
++                        );
++                        if (b64) next = 'data:image/jpeg;base64,' + b64;
++                    } catch (e) {
++                        console.warn('Remote: next-fragment preview capture failed', e);
++                    }
++                } else if (routes.down || routes.right) {
 +                    let nextH = currH;
 +                    let nextV = currV;
 +                    if (routes.down) nextV++;
 +                    else { nextH++; nextV = 0; }
 +                    try {
++                        // Pass -1 so the next slide shows in its initial state (no fragments
++                        // visible), matching the desktop notes "Upcoming" preview.
 +                        const b64 = await window.electronAPI.captureNextSlide(
-+                            window.location.href, nextH, nextV
++                            window.location.href, nextH, nextV, -1
 +                        );
 +                        if (b64) next = 'data:image/jpeg;base64,' + b64;
 +                    } catch (e) {
@@ -137,9 +179,9 @@
 +            socket.emit('slide_preview', { current, next });
 +        } finally {
 +            capturingPreview = false;
-         }
-     }
- 
++        }
++    }
++
      const msgInit = (data) => {
 +        // Pre-warm the hidden capture window so it's ready by the time slides advance
 +        if (window.electronAPI?.initCaptureWindow) {
@@ -158,13 +200,22 @@
              reveal.addEventListener("overviewshown", sendRemoteState);
              reveal.addEventListener("overviewhidden", sendRemoteState);
              reveal.addEventListener("paused", sendRemoteState);
-@@ -251,8 +375,23 @@
+@@ -202,6 +350,8 @@ const init = (reveal) => {
+             reveal.addEventListener("overviewshown", sendRemoteState);
+             reveal.addEventListener("overviewhidden", sendRemoteState);
+             reveal.addEventListener("slidechanged", sendRemoteFullState);
++            reveal.addEventListener("fragmentshown", () => { sendRemoteState(); sendSlidePreview(); });
++            reveal.addEventListener("fragmenthidden", () => { sendRemoteState(); sendSlidePreview(); });
+ 
+             sendRemoteFullState();
+         }
+@@ -247,6 +397,21 @@ const init = (reveal) => {
              text: reveal.getSlideNotes()
          });
          sendRemoteState();
 +        sendSlidePreview();
-     }
- 
++    }
++
 +    // Returns the 1-based flat slide number, counting through all h and v slides.
 +    // Using indices.h alone always reads 0 for all-vertical presentations.
 +    function getFlatSlideNumber() {
@@ -177,12 +228,10 @@
 +        }
 +        flat += (indices.v || 0) + 1;
 +        return flat;
-+    }
-+
+     }
+ 
      function sendRemoteState() {
-         if (pluginConfig.suppressInOverview && reveal.isOverview()) return;
-         socket.emit("state_changed", {
-@@ -263,6 +402,7 @@
+@@ -259,6 +424,7 @@ const init = (reveal) => {
              isAutoSliding: reveal.isAutoSliding(),
              progress: reveal.getProgress(),
              slideCount: reveal.getTotalSlides(),
@@ -190,7 +239,7 @@
              indices: reveal.getIndices(),
              availableRoutes: reveal.availableRoutes(),
              autoslide: (typeof config.autoSlide === "number" && config.autoSlide > 0) &&
-@@ -284,6 +424,8 @@
+@@ -280,6 +446,8 @@ const init = (reveal) => {
  
      function msgClientConnected() {
          div.style.display = "none";
@@ -199,3 +248,14 @@
      }
  
      let pendingMultiplexState = null;
+@@ -334,5 +502,9 @@ export default () => ({
+     setMultiplexPaused(paused) { multiplexPaused = !!paused; },
+     isMultiplexPaused() { return multiplexPaused; },
+     // Force-send current state to followers immediately (useful on resume to re-sync).
+-    sendCurrentState() { if (_sendMultiplexStateRef) _sendMultiplexStateRef(); }
++    sendCurrentState() { if (_sendMultiplexStateRef) _sendMultiplexStateRef(); },
++    // Send a custom message over the established socket.
++    sendMessage(type, data) { if (_socket) _socket.emit(type, data); },
++    // Register a handler for a custom socket message type.
++    onMessage(type, fn) { if (_socket) _socket.on(type, fn); },
+ });
