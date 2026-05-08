@@ -21,8 +21,12 @@ export function revealTweaks(deck) {
       ensureLinksOpenExternally(deck);
       updateFixedOverlayVisibility(deck);
     });
-    deck.on('overviewshown', () => updateFixedOverlayVisibility(deck));
+    deck.on('overviewshown', () => {
+      updateFixedOverlayVisibility(deck);
+      applyBgtintToOverview(deck);
+    });
     deck.on('overviewhidden', () => {
+      removeBgtintFromOverview(deck);
       updateAttributionFromCurrentSlide(deck);
       updateHiddenPreviewOverlay(deck);
       updateFixedOverlayVisibility(deck);
@@ -689,6 +693,51 @@ function applyTintStyleToLayer(layer, tintStyle) {
   }
 
   layer.dataset.tintSignature = tintStyleSignature(tintStyle);
+}
+
+function applyBgtintToSlideBg(slide) {
+  const rawTint = slide.getAttribute('data-tint-color');
+  if (!rawTint) return;
+  const bg = slide.slideBackgroundElement;
+  if (!bg) return;
+  const resolved = resolveTintStyle(rawTint);
+  if (!resolved || resolved.type === 'image') return;
+  bg._rvOvBg = bg.style.background;
+  bg._rvOvBgColor = bg.style.backgroundColor;
+  if (resolved.type === 'gradient') {
+    bg.style.background = resolved.value;
+  } else {
+    bg.style.backgroundColor = resolved.value;
+  }
+}
+
+function removeBgtintFromSlideBg(slide) {
+  const bg = slide.slideBackgroundElement;
+  if (!bg || !('_rvOvBg' in bg)) return;
+  bg.style.background = bg._rvOvBg;
+  bg.style.backgroundColor = bg._rvOvBgColor;
+  delete bg._rvOvBg;
+  delete bg._rvOvBgColor;
+}
+
+function applyBgtintToOverview(deck) {
+  deck.getHorizontalSlides().forEach((hslide) => {
+    if (hslide.classList.contains('stack')) {
+      Array.from(hslide.querySelectorAll(':scope > section')).forEach(applyBgtintToSlideBg);
+    } else {
+      applyBgtintToSlideBg(hslide);
+    }
+  });
+}
+
+function removeBgtintFromOverview(deck) {
+  deck.getHorizontalSlides().forEach((hslide) => {
+    if (hslide.classList.contains('stack')) {
+      Array.from(hslide.querySelectorAll(':scope > section')).forEach(removeBgtintFromSlideBg);
+    } else {
+      removeBgtintFromSlideBg(hslide);
+    }
+  });
 }
 
 function hideControlsOnSpeakerNotes() {

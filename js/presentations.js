@@ -778,6 +778,19 @@ pluginLoader('presentations',`/plugins_${key}`).then(async function() {
           el.removeAttribute('data-autoplay');
           el.pause?.();
         });
+
+        // Apply bgtint (data-tint-color) to the background clone so gradient/color
+        // backgrounds show in the upcoming-slide preview, not just during live playback.
+        const rawTint = previewSlide.getAttribute?.('data-tint-color') || '';
+        if (rawTint && !/^image\s*:/i.test(rawTint)) {
+          const isGradient = /^(linear-gradient|radial-gradient|conic-gradient)\s*\(/i.test(rawTint);
+          if (isGradient) {
+            bgClone.style.background = rawTint;
+          } else {
+            bgClone.style.backgroundColor = rawTint;
+          }
+        }
+
         const fakeBgs = document.createElement('div');
         fakeBgs.className = 'backgrounds';
         fakeBgs.style.cssText = placementCss;
