@@ -27,6 +27,7 @@ timerEl.addEventListener('touchend', (e) => { e.preventDefault(); resetTimer(); 
 
 // ── Font size ─────────────────────────────────────────
 const FONT_KEY = 'speakerNotesFontSize';
+const INVERT_KEY = 'speakerNotesInverted';
 const notesEl = document.getElementById('notes');
 let fontSize = parseFloat(localStorage.getItem(FONT_KEY)) || 16;
 
@@ -35,9 +36,20 @@ function applyFontSize() {
 }
 applyFontSize();
 
+// ── Invert colors ─────────────────────────────────────
+const invertBtn = document.getElementById('invert-btn');
+let notesInverted = localStorage.getItem(INVERT_KEY) === 'true';
+
+function applyInvert() {
+    document.body.classList.toggle('notes-inverted', notesInverted);
+    invertBtn.classList.toggle('active', notesInverted);
+}
+applyInvert();
+
 window.speakerControl = {
     increaseFontSize() { fontSize = Math.min(40, fontSize + 2); localStorage.setItem(FONT_KEY, fontSize); applyFontSize(); },
     decreaseFontSize() { fontSize = Math.max(10, fontSize - 2); localStorage.setItem(FONT_KEY, fontSize); applyFontSize(); },
+    toggleInvert() { notesInverted = !notesInverted; localStorage.setItem(INVERT_KEY, notesInverted); applyInvert(); },
     prev()  { socket.emit('command', { command: 'prev' }); },
     next()  { socket.emit('command', { command: 'next' }); },
     up()    { socket.emit('command', { command: 'up' }); },

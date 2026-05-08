@@ -56,6 +56,11 @@ html, body {
     background: #555;
 }
 
+#invert-btn.active {
+    background: #7ec8e3;
+    color: #1a1a1a;
+}
+
 #timer {
     flex: 1;
     text-align: right;
@@ -125,6 +130,12 @@ html, body {
 
 .thumb-wrap:first-child img {
     border-color: #7ec8e3;
+}
+
+/* ── Inverted notes ──────────────────────────────────── */
+body.notes-inverted #notes {
+    background: #f5f5f5;
+    color: #1a1a1a;
 }
 
 /* ── Notes ───────────────────────────────────────────── */
