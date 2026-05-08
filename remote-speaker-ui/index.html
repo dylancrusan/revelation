@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Speaker View</title>
+    <link rel="stylesheet" href="./speaker.css">
+</head>
+<body>
+    <div id="header">
+        <span id="slide-info">Slide <span id="slide-current">–</span> of <span id="slide-total">–</span></span>
+        <div id="font-controls">
+            <button onclick="speakerControl.decreaseFontSize()" aria-label="Decrease font size">A−</button>
+            <button onclick="speakerControl.increaseFontSize()" aria-label="Increase font size">A+</button>
+        </div>
+        <span id="timer" title="Tap to reset">0:00</span>
+    </div>
+
+    <div id="main">
+        <div id="thumbnails">
+            <div class="thumb-wrap">
+                <div class="thumb-label">Current</div>
+                <img id="thumb-current" src="" alt="">
+            </div>
+            <div class="thumb-wrap">
+                <div class="thumb-label">Next</div>
+                <img id="thumb-next" src="" alt="">
+            </div>
+        </div>
+
+        <div id="notes">(Connecting...)</div>
+    </div>
+
+    <div id="progress-bar"><div id="progress"></div></div>
+
+    <div id="controls">
+        <button id="prev" onclick="speakerControl.prev()">&#9664;</button>
+        <button id="up" onclick="speakerControl.up()">&#9650;</button>
+        <button id="down" onclick="speakerControl.down()">&#9660;</button>
+        <button id="next" onclick="speakerControl.next()">&#9654;</button>
+        <button id="pause" onclick="speakerControl.pause()">&#9646;&#9646;</button>
+    </div>
+
+    <script type="module" src="./speaker.js"></script>
+</body>
+</html>

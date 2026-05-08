@@ -1,0 +1,201 @@
+--- a/plugin/remote.js
++++ b/plugin/remote.js
+@@ -11,10 +11,18 @@
+ 
+ 
+ const init = (reveal) => {
++    // In capture-only mode (hidden thumbnail window) skip all socket/multiplex logic.
++    if (new URLSearchParams(window.location.search).has('_cap')) return;
++
+     let socket;
+     let link;
+     let image;
+     let div;
++    let speakerLink;
++    let speakerImage;
++    let speakerDiv;
++    let previewThrottle = null;
++    let capturingPreview = false;
+ 
+     const listeners = {};
+ 
+@@ -107,6 +115,7 @@
+         }
+ 
+         createPopup();
++        createSpeakerPopup();
+ 
+         console.info("Remote: Starting connection");
+     }
+@@ -188,15 +197,130 @@
+             image.src = imageData;
+             link.href = url;
+             div.style.display = "flex";
++        }
++    }
++
++    function createSpeakerPopup() {
++        const body = document.getElementsByTagName("body")[0];
++        const inner = document.createElement("div");
++
++        speakerLink = document.createElement("a");
++        speakerImage = document.createElement("img");
++        speakerDiv = document.createElement("div");
++
++        speakerDiv.style.display = "none";
++        speakerDiv.style.position = "fixed";
++        speakerDiv.style.left = '0';
++        speakerDiv.style.top = '0';
++        speakerDiv.style.bottom = '0';
++        speakerDiv.style.right = '0';
++        speakerDiv.style.zIndex = '1000';
++        speakerDiv.style.alignItems = "center";
++        speakerDiv.style.justifyContent = "center";
++
++        inner.style.padding = "50px";
++        inner.style.borderRadius = "50px";
++        inner.style.textAlign = "center";
++        inner.style.background = "rgba(255, 255, 255, .9)";
++
++        speakerLink.target = "_blank";
++        speakerLink.style.fontSize = "200%";
++        speakerImage.style.border = "20px solid white";
++
++        speakerDiv.appendChild(inner);
++        inner.appendChild(speakerLink);
++        speakerLink.appendChild(speakerImage);
++        speakerLink.appendChild(document.createElement("br"));
++        speakerLink.appendChild(document.createElement("br"));
++        speakerLink.appendChild(document.createTextNode("Or share this link"));
++        body.appendChild(speakerDiv);
++    }
++
++    const toggleSpeakerPopup = (imageData, url) => {
++        if (speakerLink.href === url && speakerDiv.style.display !== "none") {
++            speakerDiv.style.display = "none";
++        } else {
++            speakerImage.src = imageData;
++            speakerLink.href = url;
++            speakerDiv.style.display = "flex";
++        }
++    }
++
++    function sendSlidePreview() {
++        clearTimeout(previewThrottle);
++        previewThrottle = setTimeout(_doSlideCapture, Math.max((reveal.getConfig().transitionDuration || 260) + 150, 1000));
++    }
++
++    async function _doSlideCapture() {
++        previewThrottle = null;
++        if (capturingPreview) {
++            // Another capture is in flight; retry shortly after it finishes rather than drop.
++            previewThrottle = setTimeout(_doSlideCapture, 200);
++            return;
++        }
++
++        // Snapshot slide state BEFORE any async operations so navigation during
++        // the IPC round-trip doesn't corrupt the next-slide index.
++        const indices = reveal.getIndices();
++        const routes = reveal.availableRoutes();
++
++        capturingPreview = true;
++        try {
++            let current = null;
++            let next = null;
++
++            // Use the hidden capture window (transitions disabled) for both thumbnails.
++            // capturePage() on the live window picks up GPU compositing artifacts from
++            // the previous slide even after transitions end; the hidden window is clean.
++            if (window.electronAPI?.captureNextSlide) {
++                const currH = indices.h || 0;
++                const currV = indices.v || 0;
++                try {
++                    const b64 = await window.electronAPI.captureNextSlide(
++                        window.location.href, currH, currV
++                    );
++                    if (b64) current = 'data:image/jpeg;base64,' + b64;
++                } catch (e) {
++                    console.warn('Remote: current slide capture failed', e);
++                }
++
++                if (routes.down || routes.right) {
++                    let nextH = currH;
++                    let nextV = currV;
++                    if (routes.down) nextV++;
++                    else { nextH++; nextV = 0; }
++                    try {
++                        const b64 = await window.electronAPI.captureNextSlide(
++                            window.location.href, nextH, nextV
++                        );
++                        if (b64) next = 'data:image/jpeg;base64,' + b64;
++                    } catch (e) {
++                        console.warn('Remote: next slide capture failed', e);
++                    }
++                }
++            }
++
++            socket.emit('slide_preview', { current, next });
++        } finally {
++            capturingPreview = false;
+         }
+     }
+ 
+     const msgInit = (data) => {
++        // Pre-warm the hidden capture window so it's ready by the time slides advance
++        if (window.electronAPI?.initCaptureWindow) {
++            window.electronAPI.initCaptureWindow(window.location.href);
++        }
++
+         if (pluginConfig.remote) {
+             reveal.addKeyBinding({keyCode: 82, key: "R", description: "Show remote control url"}, () => {
+                 togglePopup(data.remoteImage, data.remoteUrl);
+             });
+ 
++            reveal.addKeyBinding({keyCode: 80, key: "P", description: "Show speaker view url"}, () => {
++                toggleSpeakerPopup(data.speakerImage, data.speakerUrl);
++            });
++
+             reveal.addEventListener("overviewshown", sendRemoteState);
+             reveal.addEventListener("overviewhidden", sendRemoteState);
+             reveal.addEventListener("paused", sendRemoteState);
+@@ -251,8 +375,23 @@
+             text: reveal.getSlideNotes()
+         });
+         sendRemoteState();
++        sendSlidePreview();
+     }
+ 
++    // Returns the 1-based flat slide number, counting through all h and v slides.
++    // Using indices.h alone always reads 0 for all-vertical presentations.
++    function getFlatSlideNumber() {
++        const indices = reveal.getIndices();
++        const hSlides = Array.from(document.querySelectorAll('.reveal .slides > section'));
++        let flat = 0;
++        for (let hi = 0; hi < indices.h; hi++) {
++            const vCount = hSlides[hi]?.querySelectorAll(':scope > section').length || 0;
++            flat += Math.max(1, vCount);
++        }
++        flat += (indices.v || 0) + 1;
++        return flat;
++    }
++
+     function sendRemoteState() {
+         if (pluginConfig.suppressInOverview && reveal.isOverview()) return;
+         socket.emit("state_changed", {
+@@ -263,6 +402,7 @@
+             isAutoSliding: reveal.isAutoSliding(),
+             progress: reveal.getProgress(),
+             slideCount: reveal.getTotalSlides(),
++            currentSlide: getFlatSlideNumber(),
+             indices: reveal.getIndices(),
+             availableRoutes: reveal.availableRoutes(),
+             autoslide: (typeof config.autoSlide === "number" && config.autoSlide > 0) &&
+@@ -284,6 +424,8 @@
+ 
+     function msgClientConnected() {
+         div.style.display = "none";
++        speakerDiv.style.display = "none";
++        sendSlidePreview();
+     }
+ 
+     let pendingMultiplexState = null;

@@ -1,0 +1,218 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+    height: 100%;
+    font-family: "Source Sans Pro", Helvetica, sans-serif;
+    background: #1a1a1a;
+    color: #e0e0e0;
+    font-size: 16px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Header ──────────────────────────────────────────── */
+#header {
+    display: flex;
+    align-items: center;
+    padding: 3px 10px;
+    background: #2a2a2a;
+    border-bottom: 1px solid #444;
+    flex-shrink: 0;
+    gap: 6px;
+}
+
+#slide-info {
+    flex: 1;
+    font-size: 16px;
+    color: #aaa;
+    white-space: nowrap;
+}
+
+#font-controls {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 5px;
+}
+
+#font-controls button {
+    background: #3a3a3a;
+    color: #d8d8d8;
+    border: none;
+    border-radius: 6px;
+    padding: 5px 16px;
+    font-size: 18px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+#font-controls button:active {
+    background: #555;
+}
+
+#timer {
+    flex: 1;
+    text-align: right;
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+    font-weight: bold;
+    color: #7ec8e3;
+    cursor: pointer;
+    user-select: none;
+    padding: 2px 8px;
+    border-radius: 5px;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+
+#timer:active {
+    background: #3a3a3a;
+}
+
+/* ── Main area (thumbnails + notes) ──────────────────── */
+#main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
+/* ── Thumbnails ──────────────────────────────────────── */
+#thumbnails {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+    padding: 6px;
+    background: #111;
+    flex-shrink: 0;
+}
+
+.thumb-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+}
+
+.thumb-wrap:first-child {
+    flex: 2;
+}
+
+.thumb-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #666;
+    padding-left: 2px;
+}
+
+#thumbnails img {
+    width: 100%;
+    display: block;
+    border-radius: 3px;
+    border: 2px solid #333;
+    background: #111;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+}
+
+.thumb-wrap:first-child img {
+    border-color: #7ec8e3;
+}
+
+/* ── Notes ───────────────────────────────────────────── */
+#notes {
+    flex: 1;
+    min-height: 0;
+    padding: 10px 12px;
+    overflow-y: auto;
+    line-height: 1.55;
+    font-size: var(--notes-font-size, 16px);
+    color: #d8d8d8;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ── Progress ────────────────────────────────────────── */
+#progress-bar {
+    height: 3px;
+    background: #333;
+    flex-shrink: 0;
+}
+
+#progress {
+    height: 100%;
+    background: #7ec8e3;
+    width: 0%;
+    transition: width 0.3s;
+}
+
+/* ── Controls ────────────────────────────────────────── */
+#controls {
+    display: flex;
+    gap: 6px;
+    padding: 6px 10px;
+    background: #2a2a2a;
+    border-top: 1px solid #444;
+    flex-shrink: 0;
+    justify-content: center;
+}
+
+#controls button {
+    flex: 1;
+    max-width: 70px;
+    padding: 10px 0;
+    border: none;
+    border-radius: 8px;
+    background: #3a3a3a;
+    color: #e0e0e0;
+    font-size: 18px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+#controls button:active {
+    background: #555;
+}
+
+#controls button.disabled {
+    opacity: 0.2;
+    pointer-events: none;
+}
+
+#controls button.pressed {
+    background: #7ec8e3;
+    color: #1a1a1a;
+}
+
+/* ── Landscape ───────────────────────────────────────── */
+@media (orientation: landscape) {
+    #main {
+        flex-direction: row;
+    }
+
+    #thumbnails {
+        flex: 0 0 42%;
+        flex-direction: column;
+        overflow-y: auto;
+        border-right: 1px solid #333;
+        align-items: stretch;
+    }
+
+    .thumb-wrap,
+    .thumb-wrap:first-child {
+        flex: none;
+    }
+
+    #notes {
+        flex: 1;
+        min-width: 0;
+        padding: 12px 14px;
+    }
+}

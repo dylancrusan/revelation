@@ -496,6 +496,7 @@ function presentationIndexPlugin() {
       ensureRevealRemoteServer(server);
       server.middlewares.use('/_remote/ui', serveStatic(path.resolve(__dirname, 'remote-ui'), { fallthrough: true }));
       server.middlewares.use('/_remote/ui', serveStatic(path.resolve(__dirname, 'node_modules/reveal.js-remote/server-ui'), { fallthrough: true }));
+      server.middlewares.use('/_remote/speaker', serveStatic(path.resolve(__dirname, 'remote-speaker-ui'), { fallthrough: false }));
       server.middlewares.use((req, res, next) => {
         if (!req.url?.startsWith('/peer/')) return next();
 
@@ -1145,6 +1146,7 @@ function initRevealRemotePresenter(socket, initialData, baseUrl) {
   socket.join('presenter-' + remoteId);
 
   const remoteUrl = baseUrl + '_remote/ui/?' + remoteId;
+  const speakerUrl = baseUrl + '_remote/speaker/?' + remoteId;
   const multiplexUrl = initialData.shareUrl.replace(/#.*/, '') +
     (initialData.shareUrl.indexOf('?') > 0 ? '&' : '?') + 'remoteMultiplexId=' + multiplexId;
 
@@ -1155,11 +1157,12 @@ function initRevealRemotePresenter(socket, initialData, baseUrl) {
 
   Promise.all([
     qrToDataURL(remoteUrl, { errorCorrectionLevel: 'Q' }),
-    qrToDataURL(multiplexUrl, { errorCorrectionLevel: 'Q' })
+    qrToDataURL(multiplexUrl, { errorCorrectionLevel: 'Q' }),
+    qrToDataURL(speakerUrl, { errorCorrectionLevel: 'Q' })
   ]).then((base64) => {
     socket.emit('init', {
-      remoteUrl, multiplexUrl, hash, remoteId, multiplexId,
-      remoteImage: base64[0], multiplexImage: base64[1]
+      remoteUrl, multiplexUrl, speakerUrl, hash, remoteId, multiplexId,
+      remoteImage: base64[0], multiplexImage: base64[1], speakerImage: base64[2]
     });
   });
 
@@ -1175,6 +1178,12 @@ function initRevealRemotePresenter(socket, initialData, baseUrl) {
     socket.to('remote-' + remoteId).emit('notes_changed', data);
   });
 
+  socket.on('slide_preview', (data) => {
+    if (!revealRemoteStates[remoteId]) revealRemoteStates[remoteId] = {};
+    revealRemoteStates[remoteId].preview = data;
+    socket.to('remote-' + remoteId).emit('slide_preview', data);
+  });
+
   socket.on('multiplex', (data) => {
     revealRemoteMultiplexes[multiplexId] = data;
     socket.to('multiplex-' + multiplexId).emit('multiplex', data);
@@ -1187,8 +1196,9 @@ function initRevealRemoteControl(socket, data) {
   socket.to('presenter-' + id).emit('client_connected', {});
 
   if (revealRemoteStates[id]) {
-    if (revealRemoteStates[id].notes) socket.emit('notes_changed', revealRemoteStates[id].notes);
-    if (revealRemoteStates[id].state) socket.emit('state_changed', revealRemoteStates[id].state);
+    if (revealRemoteStates[id].notes)   socket.emit('notes_changed',  revealRemoteStates[id].notes);
+    if (revealRemoteStates[id].state)   socket.emit('state_changed',  revealRemoteStates[id].state);
+    if (revealRemoteStates[id].preview) socket.emit('slide_preview',  revealRemoteStates[id].preview);
   }
 
   socket.on('command', (cmd) => {
