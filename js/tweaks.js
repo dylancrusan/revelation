@@ -65,6 +65,35 @@ export function revealTweaks(deck) {
     hideControlsOnSpeakerNotes();
     doubleClickFullScreen();
     hideCursorOnIdle();
+
+    if (isSpeakerViewReceiver) {
+        // Reveal's navigateRight() calls slide(h+1, undefined); undefined causes
+        // getPreviousVerticalIndex() to restore the last-visited v of that section,
+        // so the upcoming panel shows 2.2 instead of 2.1 after you've been there once.
+        //
+        // deck.next = override doesn't work because onPostMessage reads the internal
+        // Reveal object (not the returned API); values were spread in at construction time.
+        // Instead, intercept the postMessage in capture phase (fires before Reveal's
+        // bubble-phase handler) and call deck.slide(h+1, 0) with an explicit 0.
+        let deckReady = false;
+        deck.on('ready', () => { deckReady = true; });
+
+        window.addEventListener('message', function(event) {
+            if (!deckReady || typeof event.data !== 'string') return;
+            let data;
+            try { data = JSON.parse(event.data); } catch { return; }
+            if (!data || data.method !== 'next') return;
+
+            event.stopImmediatePropagation();
+
+            const routes = deck.availableRoutes();
+            if (routes.down) {
+                deck.down();
+            } else if (routes.right) {
+                deck.slide(deck.getIndices().h + 1, 0);
+            }
+        }, true); // capture phase — fires before Reveal's bubble-phase onPostMessage
+    }
 }
 
 function loadAllSlideBackgrounds(deck) {
