@@ -108,6 +108,7 @@ export async function loadAndPreprocessMarkdown(deck, selectedFile = null) {
   const contentWithBlankSlide = `${content}\n\n---\n\n`;
   const forceControls = urlParams.get('forceControls') === '1';
   const builderPreviewMode = urlParams.get('builderPreview') === '1';
+  const isSpeakerViewReceiver = urlParams.has('receiver');
   const yamlScrollSpeed = Number.parseFloat(metadata.scrollspeed);
 
   // Publish runtime-only values that other views consume, e.g. teleprompter notes scroll speed.
@@ -335,7 +336,7 @@ export async function loadAndPreprocessMarkdown(deck, selectedFile = null) {
 
   // Wire up range-based auto-slide when a valid start/end pair is configured.
   // Skip in any builder preview mode (both the main forceControls preview and the canvas editor iframe).
-  if (!builderPreviewMode && autoSlideRangeStart !== null && autoSlideRangeEnd !== null && autoSlideRangeStart <= autoSlideRangeEnd) {
+  if (!builderPreviewMode && !isSpeakerViewReceiver && autoSlideRangeStart !== null && autoSlideRangeEnd !== null && autoSlideRangeStart <= autoSlideRangeEnd) {
     let rangeActive = false;
     let rangePaused = false;
 
@@ -371,6 +372,15 @@ export async function loadAndPreprocessMarkdown(deck, selectedFile = null) {
       rangePaused = false;
       deck.configure({ autoSlide: 0 });
     };
+
+    // Speaker view (S key) forwards keys to its iframe, which sends setState back to the main window.
+    // Intercept that here — before deck.initialize registers Reveal's own handler — so rangeActive is
+    // already false when the resulting slidechanged fires, preventing loop-back and killing auto-slide.
+    window.addEventListener('message', (event) => {
+      let data;
+      try { data = JSON.parse(event.data); } catch (e) { return; }
+      if (data?.method === 'setState' && (rangeActive || rangePaused)) deactivateRange();
+    });
 
     // User paused — keep autoSlide configured so the button stays visible; just track the paused state.
     deck.on('autoslidepaused', () => {
@@ -428,7 +438,7 @@ export async function loadAndPreprocessMarkdown(deck, selectedFile = null) {
   delete config.autoSlideColumnEnd;
   delete config.autoSlideColumnInterval;
 
-  if (!builderPreviewMode && autoSlideColumnStart !== null && autoSlideColumnEnd !== null && autoSlideColumnStart <= autoSlideColumnEnd) {
+  if (!builderPreviewMode && !isSpeakerViewReceiver && autoSlideColumnStart !== null && autoSlideColumnEnd !== null && autoSlideColumnStart <= autoSlideColumnEnd) {
     let colRangeActive = false;
     let colRangePaused = false;
 
@@ -443,6 +453,13 @@ export async function loadAndPreprocessMarkdown(deck, selectedFile = null) {
       colRangePaused = false;
       deck.configure({ autoSlide: 0 });
     };
+
+    // Same speaker-view setState interception as the range block above.
+    window.addEventListener('message', (event) => {
+      let data;
+      try { data = JSON.parse(event.data); } catch (e) { return; }
+      if (data?.method === 'setState' && (colRangeActive || colRangePaused)) deactivateColRange();
+    });
 
     // User paused — keep autoSlide configured so the button stays visible; just track the paused state.
     deck.on('autoslidepaused', () => {
