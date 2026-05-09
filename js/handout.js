@@ -151,6 +151,17 @@ if (import.meta.hot) {
   });
 }
 
+function joinConsecutiveHeadings(html) {
+  // Collapse consecutive same-level headings into one: <h2>Foo</h2><h2>Bar</h2> → <h2>Foo Bar</h2>
+  let prev;
+  do {
+    prev = html;
+    html = html.replace(/<(h[1-6])>([\s\S]*?)<\/\1>\s*<\1>([\s\S]*?)<\/\1>/g,
+      (_, tag, a, b) => `<${tag}>${a} ${b}</${tag}>`);
+  } while (html !== prev);
+  return html;
+}
+
 const container = document.getElementById('handout-content');
 
 if (!mdFile) {
@@ -231,7 +242,7 @@ if (!mdFile) {
       slideCount++;
 
           const cleanedMarkdown = stripSlideSeparatorsOutsideCodeBlocks(slide.content).trim();
-          const slideHTML = sanitizeRenderedHTML(marked.parse(cleanedMarkdown));
+          const slideHTML = sanitizeRenderedHTML(joinConsecutiveHeadings(marked.parse(cleanedMarkdown)));
           const cleanedNote = slide.notes
             ? stripSlideSeparatorsOutsideCodeBlocks(slide.notes).trim().replace(/\{#[0-9a-fA-F]{3,6}:([^}]+)\}/g, '$1')
             : '';
