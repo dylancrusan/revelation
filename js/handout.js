@@ -233,7 +233,7 @@ if (!mdFile) {
           const cleanedMarkdown = stripSlideSeparatorsOutsideCodeBlocks(slide.content).trim();
           const slideHTML = sanitizeRenderedHTML(marked.parse(cleanedMarkdown));
           const cleanedNote = slide.notes
-            ? stripSlideSeparatorsOutsideCodeBlocks(slide.notes).trim()
+            ? stripSlideSeparatorsOutsideCodeBlocks(slide.notes).trim().replace(/\{#[0-9a-fA-F]{3,6}:([^}]+)\}/g, '$1')
             : '';
           const noteHTML = sanitizeRenderedHTML(marked.parse(cleanedNote));
 
