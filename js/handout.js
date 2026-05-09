@@ -307,11 +307,24 @@ document.getElementById('handout-print-btn').addEventListener('click', () => {
   window.print();
 });
 
-document.getElementById('toggle-links').addEventListener('change', e => {
+document.getElementById('toggle-slide-numbers').addEventListener('change', e => {
+  const show = e.target.checked;
+  const linksChecked = document.getElementById('toggle-links').checked;
   document.querySelectorAll('.slide-number-link').forEach(el => {
-    el.style.display = e.target.checked ? '' : 'none';
+    el.style.display = show && linksChecked ? '' : 'none';
   });
   document.querySelectorAll('.slide-number-nolink').forEach(el => {
-    el.style.display = e.target.checked ? 'none' : '';
+    el.style.display = show && !linksChecked ? '' : 'none';
+  });
+});
+
+document.getElementById('toggle-links').addEventListener('change', e => {
+  const linksChecked = e.target.checked;
+  const numbersChecked = document.getElementById('toggle-slide-numbers').checked;
+  document.querySelectorAll('.slide-number-link').forEach(el => {
+    el.style.display = numbersChecked && linksChecked ? '' : 'none';
+  });
+  document.querySelectorAll('.slide-number-nolink').forEach(el => {
+    el.style.display = numbersChecked && !linksChecked ? '' : 'none';
   });
 });
