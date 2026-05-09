@@ -303,6 +303,10 @@ document.getElementById('toggle-attributions').addEventListener('change', e => {
   });
 });
 
+document.getElementById('handout-print-btn').addEventListener('click', () => {
+  window.print();
+});
+
 document.getElementById('toggle-links').addEventListener('change', e => {
   document.querySelectorAll('.slide-number-link').forEach(el => {
     el.style.display = e.target.checked ? '' : 'none';
