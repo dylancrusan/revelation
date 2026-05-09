@@ -900,6 +900,21 @@ pluginLoader('presentations',`/plugins_${key}`).then(async function() {
   deck.on('overviewshown', updateNotesPaneVisibility);
   deck.on('overviewhidden', updateNotesPaneVisibility);
 
+  // Color list markers in the built-in notes pane when entire item is color-wrapped.
+  function colorNotesListMarkers() {
+    const pane = document.querySelector('.reveal .speaker-notes');
+    if (!pane) return;
+    pane.querySelectorAll('li').forEach(li => {
+      const kids = [...li.childNodes].filter(n => n.nodeType === Node.ELEMENT_NODE);
+      const span = kids.length === 1 && (kids[0].tagName === 'SPAN' || kids[0].tagName === 'FONT') ? kids[0] : null;
+      if (span && span.style.color) li.style.color = span.style.color;
+    });
+  }
+  deck.on('slidechanged', colorNotesListMarkers);
+  deck.on('fragmentshown', colorNotesListMarkers);
+  deck.on('fragmenthidden', colorNotesListMarkers);
+  deck.on('ready', colorNotesListMarkers);
+
   // Refocus the viewport 2 seconds after clicking in the notes pane so
   // keyboard controls don't get stuck on the scrollable notes element.
   if (document.body.dataset.variant === 'notes') {

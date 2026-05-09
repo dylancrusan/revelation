@@ -60,12 +60,22 @@ window.slideControl = window.slideControl || (function () {
             });
         });
 
+        function colorListMarkers(container) {
+            container.querySelectorAll('li').forEach(function(li) {
+                var kids = Array.from(li.childNodes).filter(function(n) { return n.nodeType === Node.ELEMENT_NODE; });
+                var span = kids.length === 1 && (kids[0].tagName === 'SPAN' || kids[0].tagName === 'FONT') ? kids[0] : null;
+                if (span && span.style.color) li.style.color = span.style.color;
+            });
+        }
+
         socket.on('notes_changed', function (data) {
             let text = data.text;
             if (text === undefined || text === null || text.trim() === "") {
                 text = "(The current slide has no speaker notes)";
             }
-            document.getElementById('notes').innerHTML = text;
+            var notesDiv = document.getElementById('notes');
+            notesDiv.innerHTML = text;
+            colorListMarkers(notesDiv);
         });
 
         socket.on('state_changed', function (data) {
