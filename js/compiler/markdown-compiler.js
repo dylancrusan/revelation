@@ -57,6 +57,114 @@ function shouldHideCurrentSlide(target, forHandout) {
   return forHandout ? target === 'handout' : target === 'slideshow';
 }
 
+// Build the opening <div> tag for one canvas_block marker's positioning/style args.
+// (See expandCanvasBlockMarkers below for how this fits into the pipeline.)
+function buildCanvasBlockDivOpenTag(id, argsStr) {
+  const escapeAttr = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  const args = {};
+  String(argsStr || '').split(',').forEach((pair) => {
+    const eq = pair.indexOf('=');
+    if (eq < 0) return;
+    args[pair.slice(0, eq).trim()] = pair.slice(eq + 1).trim();
+  });
+  const zone = args.zone || 'center';
+  const styles = [];
+  if (args.color) styles.push(`color:${args.color}`);
+  if (args.font) styles.push(`font-family:${args.font}`);
+  if (args.size) styles.push(`font-size:${args.size}`);
+  if (args.align) styles.push(`text-align:${args.align}`);
+  if (args.bold === '1') styles.push('font-weight:bold');
+  if (args.italic === '1') styles.push('font-style:italic');
+  if (args.underline === '1') styles.push('text-decoration:underline');
+  if (args['box-bg']) styles.push(`background:${args['box-bg']}`);
+  if (args['box-border']) styles.push(`border:${args['box-border']}`);
+  const styleAttr = styles.length ? ` style="${escapeAttr(styles.join(';'))}"` : '';
+  return `<div class="revelation-block" data-canvas-block-id="${id}" data-zone="${escapeAttr(zone)}"${styleAttr}>`;
+}
+
+// Expand inline <!-- canvas_block_N: key=val,... --> markers (written by the canvas
+// builder plugin, plugins/canvasbuilder/canvas-editor.js) into positioned/styled
+// wrapper <div> elements around their block's content. Unlike other macros, this one
+// is scoped to a *range* of content rather than a single line, so it's expanded here
+// — as a preprocessing pass over the raw text, before the main line-by-line compiler
+// loop — rather than through the macro-template mechanism below. A block is closed at
+// the next canvas_block marker, a slide separator (---/***), the notes separator, or
+// end of document, so it never bleeds across slide/note boundaries.
+//
+// The <div>-then-markdown-then-</div> pattern mirrors the existing columnstart/
+// columnbreak/columnend macro output (see defaultMacros below) — an already-shipped
+// feature that relies on Reveal's markdown plugin correctly parsing ordinary markdown
+// content that sits between raw HTML block tags on their own lines.
+function expandCanvasBlockMarkers(md) {
+  const markerRe = /^<!--\s*canvas_block_(\d+):\s*(.*?)\s*-->$/;
+  const lines = String(md ?? '').split('\n');
+  const out = [];
+  let insideCodeBlock = false;
+  let currentFence = '';
+  let blockOpen = false;
+
+  const isNoteSeparator = (line) => {
+    const t = line.trim().toLowerCase();
+    return t === NOTE_SEPARATOR_CURRENT || t === NOTE_SEPARATOR_LEGACY.toLowerCase();
+  };
+
+  const closeBlock = () => {
+    if (blockOpen) {
+      // A blank line before the closing tag is required: without it, marked
+      // treats the tag and the preceding content as one continuous raw HTML
+      // block and stops re-parsing markdown partway through (verified empirically
+      // against this project's bundled marked version).
+      out.push('');
+      out.push('</div>');
+      blockOpen = false;
+    }
+  };
+
+  for (const line of lines) {
+    const fenceMatch = line.match(/^\s{0,3}((`{3,}|~{3,}))[ \t]*(.*)$/);
+    if (fenceMatch) {
+      const fence = fenceMatch[1];
+      const fenceChar = fence[0];
+      const fenceLength = fence.length;
+      if (!insideCodeBlock) {
+        insideCodeBlock = true;
+        currentFence = fence;
+      } else if (currentFence && fenceChar === currentFence[0] && fenceLength >= currentFence.length) {
+        insideCodeBlock = false;
+        currentFence = '';
+      }
+      out.push(line);
+      continue;
+    }
+    if (insideCodeBlock) {
+      out.push(line);
+      continue;
+    }
+    if (line === '---' || line === '***' || isNoteSeparator(line)) {
+      closeBlock();
+      out.push(line);
+      continue;
+    }
+    const m = line.trim().match(markerRe);
+    if (m) {
+      closeBlock();
+      out.push(buildCanvasBlockDivOpenTag(Number(m[1]), m[2]));
+      // Same reasoning as closeBlock: a blank line after the opening tag keeps
+      // it a self-contained HTML block so the content below still parses as markdown.
+      out.push('');
+      blockOpen = true;
+      continue;
+    }
+    out.push(line);
+  }
+  closeBlock();
+  return out.join('\n');
+}
+
 // Peel YAML front matter off the source document and recover safely from malformed YAML.
 export function extractFrontMatter(md) {
   const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
@@ -143,6 +251,10 @@ export function preprocessMarkdown(md, userMacros = {}, forHandout = false, medi
     appConfig,
     parseYAML: (text) => yaml.load(text)
   });
+
+  // Expand canvas-builder block markers into positioned wrapper <div>s before the
+  // main line scan (see expandCanvasBlockMarkers for why this can't be a normal macro).
+  md = expandCanvasBlockMarkers(md);
 
   // Seed the compiler with built-in macros, then overlay any deck-specific macro definitions.
   const lines = md.split('\n');

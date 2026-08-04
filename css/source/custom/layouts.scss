@@ -661,3 +661,85 @@ cite.attrib {
 .reveal table.datatable.darktable tbody tr:hover {
   background: rgba(86, 151, 255, 0.22);
 }
+
+// Canvas builder per-block positioning (plugins/canvasbuilder).
+// A <!-- canvas_block_N: zone=...,color=...,... --> marker in a slide's markdown
+// body compiles (see revelation/js/compiler/markdown-compiler.js) into a
+// <div class="revelation-block" data-zone="..." style="..."> wrapper. Color,
+// font, size, align, bold/italic/underline, and box-bg/box-border all arrive as
+// inline styles on that div — only zone positioning needs CSS here. Zone values
+// and percentages mirror the canvas builder's own preview positioning
+// (plugins/canvasbuilder/styles.css .canvas-zone-*) so the editor and the real
+// rendered slide agree on where each block sits.
+.reveal .slides section {
+  position: relative;
+}
+
+.reveal .revelation-block {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+.reveal .revelation-block[data-zone="center"] {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80%;
+  text-align: center;
+}
+
+.reveal .revelation-block[data-zone="upperthird"] {
+  top: 6%;
+  left: 10%;
+  right: 10%;
+  width: 80%;
+  text-align: center;
+}
+
+.reveal .revelation-block[data-zone="lowerthird"] {
+  bottom: 6%;
+  left: 10%;
+  right: 10%;
+  width: 80%;
+  text-align: center;
+}
+
+.reveal .revelation-block[data-zone="shiftright"] {
+  top: 50%;
+  right: 4%;
+  width: 48%;
+  transform: translateY(-50%);
+}
+
+.reveal .revelation-block[data-zone="shiftleft"] {
+  top: 50%;
+  left: 4%;
+  width: 48%;
+  transform: translateY(-50%);
+}
+
+.reveal .revelation-block[data-zone="topleft"] {
+  top: 6%;
+  left: 4%;
+  width: 48%;
+}
+
+.reveal .revelation-block[data-zone="topright"] {
+  top: 6%;
+  right: 4%;
+  width: 48%;
+  text-align: right;
+}
+
+.reveal .revelation-block[data-zone="bottomleft"] {
+  bottom: 6%;
+  left: 4%;
+  width: 48%;
+}
+
+.reveal .revelation-block[data-zone="bottomright"] {
+  bottom: 6%;
+  right: 4%;
+  width: 48%;
+  text-align: right;
+}
