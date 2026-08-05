@@ -322,6 +322,25 @@ function setupBuilderPreviewBridge(deck) {
       }
       return;
     }
+
+    if (command === 'reorderBlocks') {
+      // Front/Back/Forward/Backward (plugins/canvasbuilder/canvas-editor.js).
+      // .revelation-block divs are all position:absolute with no explicit
+      // z-index, so later-in-DOM wins stacking ties — this iframe otherwise
+      // only reflects the last *saved* file's DOM order and never reorders
+      // its own nodes on its own, so without this a reorder click wouldn't
+      // visibly restack here until the next save. Re-appending each id's
+      // block in the given order moves it to the end (appendChild on an
+      // already-attached node relocates it), so walking the full list in
+      // order re-stacks everything correctly.
+      const section = deck.getCurrentSlide();
+      if (!section) return;
+      (payload.ids || []).forEach((id) => {
+        const block = findOrSynthesizeBlock(section, id);
+        if (block) section.appendChild(block);
+      });
+      return;
+    }
   });
 
   if (builderPreviewPeerEnabled) {
