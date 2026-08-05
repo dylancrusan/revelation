@@ -673,73 +673,107 @@ cite.attrib {
 // rendered slide agree on where each block sits.
 .reveal .slides section {
   position: relative;
+  // Reveal's own base CSS gives individual (non-stack) sections
+  // position:absolute with no explicit height, so height is normally
+  // whatever their in-flow content adds up to. Once a slide's entire body is
+  // canvas_block markers, every child is itself position:absolute (below) —
+  // nothing is left in normal flow to give the section any height — so it
+  // collapses to 0px, and every percentage-based top/bottom on a block
+  // resolves against that 0px and collapses to the same spot. An explicit
+  // height (matching how Reveal's own .stack rule already does this for the
+  // slide-group container one level up) keeps the percentages meaningful.
+  height: 100%;
 }
 
 .reveal .revelation-block {
   position: absolute;
   box-sizing: border-box;
+  // Every zone below sizes to its own content (like a Keynote text box)
+  // rather than always claiming a fixed 80%/48% span regardless of how
+  // short the text is — width is set per-zone only where a max-width cap
+  // is needed to keep long text from overflowing the slide.
+  width: max-content;
 }
 
 .reveal .revelation-block[data-zone="center"] {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 80%;
+  max-width: 90%;
   text-align: center;
 }
 
+// upperthird/lowerthird used to span left:10% to right:10% (a fixed-width
+// band) to center the box; that's now a single left:50% + translateX
+// anchor instead, matching "center" — a span and a shrink-fit width can't
+// both be expressed with left+right at once (the same over-constrained-box
+// issue as a top+bottom conflict), so this is the anchor scheme that works
+// with a content-sized box.
 .reveal .revelation-block[data-zone="upperthird"] {
   top: 6%;
-  left: 10%;
-  right: 10%;
-  width: 80%;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 80%;
   text-align: center;
 }
 
 .reveal .revelation-block[data-zone="lowerthird"] {
   bottom: 6%;
-  left: 10%;
-  right: 10%;
-  width: 80%;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 80%;
   text-align: center;
 }
 
 .reveal .revelation-block[data-zone="shiftright"] {
   top: 50%;
   right: 4%;
-  width: 48%;
+  max-width: 48%;
   transform: translateY(-50%);
 }
 
 .reveal .revelation-block[data-zone="shiftleft"] {
   top: 50%;
   left: 4%;
-  width: 48%;
+  max-width: 48%;
   transform: translateY(-50%);
 }
 
 .reveal .revelation-block[data-zone="topleft"] {
   top: 6%;
   left: 4%;
-  width: 48%;
+  max-width: 48%;
 }
 
 .reveal .revelation-block[data-zone="topright"] {
   top: 6%;
   right: 4%;
-  width: 48%;
+  max-width: 48%;
   text-align: right;
 }
 
 .reveal .revelation-block[data-zone="bottomleft"] {
   bottom: 6%;
   left: 4%;
-  width: 48%;
+  max-width: 48%;
 }
 
 .reveal .revelation-block[data-zone="bottomright"] {
   bottom: 6%;
   right: 4%;
-  width: 48%;
+  max-width: 48%;
   text-align: right;
+}
+
+// Canvas builder live-edit mode (plugins/canvasbuilder/canvas-editor.js sends
+// a 'setEditing' bridge command, handled in revelation/js/presentations.js).
+// The builder overlays a transparent, editable copy of the current slide's
+// text directly over this iframe so typing happens on the real background,
+// Keynote-style. Hide this slide's own text while editing so the live render
+// and the edit overlay don't visibly double up; background images/media are
+// untouched since they aren't part of this selector.
+body.canvas-builder-editing .reveal .slides section.present {
+  h1, h2, h3, h4, h5, h6, p, li, blockquote, cite, .revelation-block {
+    visibility: hidden;
+  }
 }

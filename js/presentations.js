@@ -196,6 +196,51 @@ function setupBuilderPreviewBridge(deck) {
       }
       return;
     }
+
+    if (command === 'setEditing') {
+      // The canvas builder overlays a transparent, editable copy of the
+      // current slide's text directly on top of this iframe (Keynote-style
+      // live editing). Hide this slide's own text while that's happening so
+      // the two copies don't visibly double up; the builder restores it on
+      // exit/commit.
+      document.body.classList.toggle('canvas-builder-editing', !!payload.editing);
+      return;
+    }
+
+    if (command === 'moveBlock') {
+      // The canvas builder's own outline updates instantly while dragging a
+      // block since it's plain local DOM — this iframe otherwise only
+      // reflects the last *saved* file, so without this the real text
+      // visibly lags behind the outline (wrong position, or the old one)
+      // until the next save. Patch the matching block's position live
+      // instead, scoped to the current slide so a block-id collision with
+      // an inactive vertical slide can't move the wrong text.
+      const id = payload.id;
+      const x = Number(payload.x);
+      const y = Number(payload.y);
+      if (id == null || !Number.isFinite(x) || !Number.isFinite(y)) return;
+      const block = document.querySelector(
+        '.reveal .slides section.present .revelation-block[data-canvas-block-id="' + id + '"]'
+      );
+      if (block) {
+        // A block's original zone (e.g. lowerthird: bottom:6%, no top) is
+        // still active via its data-zone class — setting only top/left
+        // leaves that zone's own bottom/right in place too, and having
+        // both top and bottom set on the same box makes it stretch to fill
+        // the gap between them instead of sizing to its content, wildly
+        // inflating its height. "center" is the zone the compiler itself
+        // always writes for x/y-positioned blocks (see
+        // buildCanvasBlockDivOpenTag in markdown-compiler.js) — it has no
+        // bottom/right of its own, so there's nothing left to conflict.
+        block.dataset.zone = 'center';
+        block.style.top = y + '%';
+        block.style.left = x + '%';
+        block.style.right = 'auto';
+        block.style.bottom = 'auto';
+        block.style.transform = 'translate(-50%,-50%)';
+      }
+      return;
+    }
   });
 
   if (builderPreviewPeerEnabled) {

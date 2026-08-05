@@ -57,6 +57,27 @@ function shouldHideCurrentSlide(target, forHandout) {
   return forHandout ? target === 'handout' : target === 'slideshow';
 }
 
+// Split on commas that separate key=value pairs, but not commas nested
+// inside parentheses — needed because values like box-bg's rgba(r,g,b,a)
+// contain commas of their own.
+function splitCanvasBlockArgs(str) {
+  const parts = [];
+  let depth = 0;
+  let current = '';
+  for (const ch of String(str || '')) {
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    if (ch === ',' && depth === 0) {
+      parts.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  if (current) parts.push(current);
+  return parts;
+}
+
 // Build the opening <div> tag for one canvas_block marker's positioning/style args.
 // (See expandCanvasBlockMarkers below for how this fits into the pipeline.)
 function buildCanvasBlockDivOpenTag(id, argsStr) {
@@ -66,7 +87,7 @@ function buildCanvasBlockDivOpenTag(id, argsStr) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
   const args = {};
-  String(argsStr || '').split(',').forEach((pair) => {
+  splitCanvasBlockArgs(argsStr).forEach((pair) => {
     const eq = pair.indexOf('=');
     if (eq < 0) return;
     args[pair.slice(0, eq).trim()] = pair.slice(eq + 1).trim();
@@ -82,6 +103,15 @@ function buildCanvasBlockDivOpenTag(id, argsStr) {
   if (args.underline === '1') styles.push('text-decoration:underline');
   if (args['box-bg']) styles.push(`background:${args['box-bg']}`);
   if (args['box-border']) styles.push(`border:${args['box-border']}`);
+  // Freeform position (written once a block has been dragged, or moved via
+  // the canvas builder's Layout Zone grid): overrides the zone class's own
+  // top/left/transform since inline styles always win, regardless of the
+  // CSS selector's specificity — no zone-specific CSS is needed for this.
+  const x = parseFloat(args.x);
+  const y = parseFloat(args.y);
+  if (Number.isFinite(x) && Number.isFinite(y)) {
+    styles.push(`top:${y}%`, `left:${x}%`, 'transform:translate(-50%,-50%)');
+  }
   const styleAttr = styles.length ? ` style="${escapeAttr(styles.join(';'))}"` : '';
   return `<div class="revelation-block" data-canvas-block-id="${id}" data-zone="${escapeAttr(zone)}"${styleAttr}>`;
 }
