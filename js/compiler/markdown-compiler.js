@@ -136,6 +136,7 @@ function expandCanvasBlockMarkers(md) {
   let insideCodeBlock = false;
   let currentFence = '';
   let blockOpen = false;
+  let sawCanvasBlockThisSlide = false;
 
   const isNoteSeparator = (line) => {
     const t = line.trim().toLowerCase();
@@ -176,12 +177,23 @@ function expandCanvasBlockMarkers(md) {
     }
     if (line === '---' || line === '***' || isNoteSeparator(line)) {
       closeBlock();
+      sawCanvasBlockThisSlide = false;
       out.push(line);
       continue;
     }
     const m = line.trim().match(markerRe);
     if (m) {
       closeBlock();
+      if (!sawCanvasBlockThisSlide) {
+        // Flags the section so layouts.scss can give it an explicit height
+        // (needed for its blocks' percentage-based top/bottom to resolve
+        // against something other than 0px) without doing that to every
+        // slide — see the .reveal .slides section[data-has-canvas-blocks]
+        // rule for why a blanket height:100% broke Reveal's own scrollHeight-
+        // based vertical centering for ordinary (non-canvas) slides.
+        out.push('<!-- .slide: data-has-canvas-blocks -->');
+        sawCanvasBlockThisSlide = true;
+      }
       out.push(buildCanvasBlockDivOpenTag(Number(m[1]), m[2]));
       // Same reasoning as closeBlock: a blank line after the opening tag keeps
       // it a self-contained HTML block so the content below still parses as markdown.

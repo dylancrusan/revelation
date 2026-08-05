@@ -207,6 +207,35 @@ function setupBuilderPreviewBridge(deck) {
       return;
     }
 
+    // A .revelation-block wrapper only exists once the slide has been saved
+    // with an explicit canvas_block_N marker (see buildCanvasBlockDivOpenTag
+    // in markdown-compiler.js) — this iframe reflects the last saved file,
+    // so the very first time a never-before-styled block is touched, there's
+    // nothing here yet to patch. Synthesize the same wrapper the compiler
+    // will write on save, around the slide's own untouched content, so the
+    // live preview already matches what Save will produce. Shared by
+    // moveBlock and blockStyle below, since both can be the first edit.
+    const findOrSynthesizeBlock = (section, id) => {
+      let block = section.querySelector('.revelation-block[data-canvas-block-id="' + id + '"]');
+      if (!block && id === 1 && !section.querySelector('.revelation-block')) {
+        block = document.createElement('div');
+        block.className = 'revelation-block';
+        block.dataset.canvasBlockId = '1';
+        Array.from(section.childNodes)
+          .filter((node) => !(node.nodeType === 1 && node.matches('aside.notes')))
+          .forEach((node) => block.appendChild(node));
+        section.appendChild(block);
+        // Without this, the section has no explicit height (nothing left in
+        // normal flow once its only child is position:absolute) and the
+        // block's top/left percentages resolve against that collapsed 0px
+        // box instead of the full slide — see the data-has-canvas-blocks
+        // height:100% rule in layouts.scss, which the compiler sets via the
+        // same attribute once this is saved with a real canvas_block marker.
+        section.setAttribute('data-has-canvas-blocks', '');
+      }
+      return block;
+    };
+
     if (command === 'moveBlock') {
       // The canvas builder's own outline updates instantly while dragging a
       // block since it's plain local DOM — this iframe otherwise only
@@ -219,9 +248,18 @@ function setupBuilderPreviewBridge(deck) {
       const x = Number(payload.x);
       const y = Number(payload.y);
       if (id == null || !Number.isFinite(x) || !Number.isFinite(y)) return;
-      const block = document.querySelector(
-        '.reveal .slides section.present .revelation-block[data-canvas-block-id="' + id + '"]'
-      );
+      // deck.getCurrentSlide() (not a '.present' CSS lookup) because this
+      // deck is one big vertical stack — every slide is a nested <section>
+      // inside a single outer <section class="present">, so a plain
+      // '.reveal .slides section.present' selector matches that whole-deck
+      // wrapper rather than the one sub-slide actually on screen. Querying
+      // '.revelation-block' inside the wrong (outer) scope could silently
+      // hit a different slide's same-numbered block, or block this slide's
+      // own first-touch synthesis by finding a sibling slide's block and
+      // concluding (wrongly) that this slide already has one.
+      const section = deck.getCurrentSlide();
+      if (!section) return;
+      const block = findOrSynthesizeBlock(section, id);
       if (block) {
         // A block's original zone (e.g. lowerthird: bottom:6%, no top) is
         // still active via its data-zone class — setting only top/left
@@ -243,7 +281,7 @@ function setupBuilderPreviewBridge(deck) {
     }
 
     if (command === 'blockStyle') {
-      // Same instant-preview treatment as moveBlock above, for the rest of a
+      // Same instant-preview treatment as moveBlock, for the rest of a
       // block's style (color/font/size/align/bold/italic/underline/box-fill/
       // box-border — plugins/canvasbuilder/canvas-editor.js's
       // setBlockStyleProp). The canvas overlay's own text is fully
@@ -255,24 +293,18 @@ function setupBuilderPreviewBridge(deck) {
       const id = payload.id;
       const style = payload.style && typeof payload.style === 'object' ? payload.style : {};
       if (id == null) return;
-      const section = document.querySelector('.reveal .slides section.present');
+      // deck.getCurrentSlide() (not a '.present' CSS lookup) because this
+      // deck is one big vertical stack — every slide is a nested <section>
+      // inside a single outer <section class="present">, so a plain
+      // '.reveal .slides section.present' selector matches that whole-deck
+      // wrapper rather than the one sub-slide actually on screen. Querying
+      // '.revelation-block' inside the wrong (outer) scope could silently
+      // hit a different slide's same-numbered block, or block this slide's
+      // own first-touch synthesis by finding a sibling slide's block and
+      // concluding (wrongly) that this slide already has one.
+      const section = deck.getCurrentSlide();
       if (!section) return;
-      let block = section.querySelector('.revelation-block[data-canvas-block-id="' + id + '"]');
-      // Same first-touch case as moveBlock above: no .revelation-block
-      // wrapper exists yet the very first time block 1 is styled before
-      // anything's ever been saved (see buildCanvasBlockDivOpenTag in
-      // markdown-compiler.js). Synthesize the same wrapper the compiler
-      // will write on save, around the slide's own untouched content, so
-      // the live preview already matches what Save will produce.
-      if (!block && id === 1 && !section.querySelector('.revelation-block')) {
-        block = document.createElement('div');
-        block.className = 'revelation-block';
-        block.dataset.canvasBlockId = '1';
-        Array.from(section.childNodes)
-          .filter((node) => !(node.nodeType === 1 && node.matches('aside.notes')))
-          .forEach((node) => block.appendChild(node));
-        section.appendChild(block);
-      }
+      const block = findOrSynthesizeBlock(section, id);
       if (block) {
         // Mirrors buildCanvasBlockDivOpenTag's args-to-styles mapping in
         // markdown-compiler.js. Every property is reassigned (not only
