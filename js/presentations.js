@@ -965,8 +965,20 @@ function setHotReloading() {
   // VITE Hot Reloading Hook
   if (!import.meta.hot) return false;
   let reloadPending = false;
+  // import.meta.hot.on() below has no matching import.meta.hot.dispose(), so
+  // if this module itself gets HMR-replaced, the old listener stays attached
+  // alongside the new one — each with its own independent `reloadPending`
+  // closure, so the per-listener guard above doesn't stop them firing
+  // together. A window-level flag survives across however many listeners
+  // ended up registered, so only one of them ever actually reloads. This
+  // matters more than it might seem: two overlapping location.reload() calls
+  // inside the canvas builder's sandboxed preview iframe (sandbox="allow-
+  // scripts", no allow-same-origin) can tear the navigation and leave classic
+  // <script> tags like translate.js mid-load, blanking the whole slide.
 
   const fadeAndReload = () => {
+    if (window.__revelationReloadInFlight) return;
+    window.__revelationReloadInFlight = true;
     const cover = document.getElementById('screen-cover');
     if (!cover || !cover.classList.contains('faded-out')) {
       location.reload();
@@ -983,7 +995,7 @@ function setHotReloading() {
 
   import.meta.hot.on('reload-presentations', (data) => {
     if (!window.location.href.includes(`${data.slug}/`) || mdFile !== data.mdFile) return;
-    if (reloadPending) return;
+    if (reloadPending || window.__revelationReloadInFlight) return;
     reloadPending = Date.now();
 
     if (isRemoteFollower) {
