@@ -125,27 +125,33 @@ body.reveal-ready {
     }
   }
 
+  // :not(.revelation-block *) keeps these legacy slide-wide overrides from
+  // clobbering a canvas builder block's own explicit per-block color — a
+  // .revelation-block wrapper (plugins/canvasbuilder) carries its chosen
+  // color as an inline style that its p/li/h1-h6 children only *inherit*,
+  // so without this exclusion these directly-matching !important rules
+  // always won regardless of what color was picked/saved on the block.
   section[data-lighttext],
-  section[data-lighttext] p,
-  section[data-lighttext] li,
-  section[data-lighttext] h1,
-  section[data-lighttext] h2,
-  section[data-lighttext] h3,
-  section[data-lighttext] h4,
-  section[data-lighttext] h5,
-  section[data-lighttext] h6 {
+  section[data-lighttext] p:not(.revelation-block *),
+  section[data-lighttext] li:not(.revelation-block *),
+  section[data-lighttext] h1:not(.revelation-block *),
+  section[data-lighttext] h2:not(.revelation-block *),
+  section[data-lighttext] h3:not(.revelation-block *),
+  section[data-lighttext] h4:not(.revelation-block *),
+  section[data-lighttext] h5:not(.revelation-block *),
+  section[data-lighttext] h6:not(.revelation-block *) {
     color: #f0f0f0 !important;
   }
 
   section[data-darktext],
-  section[data-darktext] p,
-  section[data-darktext] li,
-  section[data-darktext] h1,
-  section[data-darktext] h2,
-  section[data-darktext] h3,
-  section[data-darktext] h4,
-  section[data-darktext] h5,
-  section[data-darktext] h6 {
+  section[data-darktext] p:not(.revelation-block *),
+  section[data-darktext] li:not(.revelation-block *),
+  section[data-darktext] h1:not(.revelation-block *),
+  section[data-darktext] h2:not(.revelation-block *),
+  section[data-darktext] h3:not(.revelation-block *),
+  section[data-darktext] h4:not(.revelation-block *),
+  section[data-darktext] h5:not(.revelation-block *),
+  section[data-darktext] h6:not(.revelation-block *) {
     color: #202020 !important;
   }
 
@@ -173,21 +179,33 @@ body.reveal-ready {
   section[data-darkbg] p,
   section[data-darkbg] ul {
     background-color: rgba(0, 0, 0, 0.75);
-    color: #fff;
     padding: 1rem;
     border-radius: 8px;
     width: fit-content;
     margin: 1rem auto;
   }
-  
+
+  // Split out from the rule above (rather than folded into it) so the pill
+  // background still applies universally, but the forced text color — like
+  // data-lighttext/data-darktext above — defers to a canvas builder block's
+  // own explicit inline color instead of always overriding it.
+  section[data-darkbg] p:not(.revelation-block *),
+  section[data-darkbg] ul:not(.revelation-block *) {
+    color: #fff;
+  }
+
   section[data-lightbg] p,
   section[data-lightbg] ul {
     background-color: rgba(255, 255, 255, 0.4);
-    color: #000;
     padding: 1rem;
     border-radius: 8px;
     width: fit-content;
     margin: 1rem auto;
+  }
+
+  section[data-lightbg] p:not(.revelation-block *),
+  section[data-lightbg] ul:not(.revelation-block *) {
+    color: #000;
   }
 
   section[data-lightbg] ul,
@@ -673,15 +691,27 @@ cite.attrib {
 // rendered slide agree on where each block sits.
 .reveal .slides section {
   position: relative;
-  // Reveal's own base CSS gives individual (non-stack) sections
-  // position:absolute with no explicit height, so height is normally
-  // whatever their in-flow content adds up to. Once a slide's entire body is
-  // canvas_block markers, every child is itself position:absolute (below) —
-  // nothing is left in normal flow to give the section any height — so it
-  // collapses to 0px, and every percentage-based top/bottom on a block
-  // resolves against that 0px and collapses to the same spot. An explicit
-  // height (matching how Reveal's own .stack rule already does this for the
-  // slide-group container one level up) keeps the percentages meaningful.
+}
+
+// Reveal's own base CSS gives individual (non-stack) sections position:absolute
+// with no explicit height, so height is normally whatever their in-flow content
+// adds up to. Once a slide's entire body is canvas_block markers, every child is
+// itself position:absolute (below) — nothing is left in normal flow to give the
+// section any height — so it collapses to 0px, and every percentage-based
+// top/bottom on a block resolves against that 0px and collapses to the same
+// spot. An explicit height (matching how Reveal's own .stack rule already does
+// this for the slide-group container one level up) keeps the percentages
+// meaningful.
+//
+// This is scoped to slides actually built from canvas blocks (flagged by the
+// compiler via data-has-canvas-blocks, see expandCanvasBlockMarkers in
+// markdown-compiler.js) rather than applied to every section: Reveal computes
+// its own vertical centering for ordinary slides as
+// (viewportHeight - slide.scrollHeight) / 2 (see reveal.js's layout()), so
+// forcing every section to height:100% made scrollHeight always equal the
+// full viewport height, collapsing that formula to 0 and pinning all regular
+// (non-canvas) slide content to the top instead of centering it.
+.reveal .slides section[data-has-canvas-blocks] {
   height: 100%;
 }
 
@@ -693,6 +723,27 @@ cite.attrib {
   // short the text is — width is set per-zone only where a max-width cap
   // is needed to keep long text from overflowing the slide.
   width: max-content;
+}
+
+// reveal.js's own base theme (node_modules/reveal.js/css/theme/template/
+// theme.scss) sets `color: var(--r-heading-color)` directly on every
+// heading, completely unconditionally — no data-attribute, no !important
+// needed for it to win. A canvas block's own chosen color (comment above)
+// is only ever *inherited* by its child h1-h6 from this div's inline
+// style, and a rule that directly matches an element always beats one it
+// only inherited, regardless of specificity. This is why a Heading-type
+// block's color never took, even with no dark/light background or text
+// macro involved at all — unlike p/li, which reveal.js's theme never
+// colors directly, only inherited from .reveal itself. .revelation-block's
+// extra class already gives this more specificity than that plain-element
+// rule, so this just hands color back to inheritance for headings here.
+.reveal .revelation-block h1,
+.reveal .revelation-block h2,
+.reveal .revelation-block h3,
+.reveal .revelation-block h4,
+.reveal .revelation-block h5,
+.reveal .revelation-block h6 {
+  color: inherit;
 }
 
 .reveal .revelation-block[data-zone="center"] {

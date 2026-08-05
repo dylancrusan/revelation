@@ -241,6 +241,55 @@ function setupBuilderPreviewBridge(deck) {
       }
       return;
     }
+
+    if (command === 'blockStyle') {
+      // Same instant-preview treatment as moveBlock above, for the rest of a
+      // block's style (color/font/size/align/bold/italic/underline/box-fill/
+      // box-border — plugins/canvasbuilder/canvas-editor.js's
+      // setBlockStyleProp). The canvas overlay's own text is fully
+      // transparent by design (so the real theme fonts show through this
+      // iframe instead of the overlay's own approximate metrics), so without
+      // this an unsaved color/style pick had nothing to show at all until
+      // the next Save — even though the Slide Sorter thumbnail, a separate
+      // renderer reading the same in-memory state, already reflected it.
+      const id = payload.id;
+      const style = payload.style && typeof payload.style === 'object' ? payload.style : {};
+      if (id == null) return;
+      const section = document.querySelector('.reveal .slides section.present');
+      if (!section) return;
+      let block = section.querySelector('.revelation-block[data-canvas-block-id="' + id + '"]');
+      // Same first-touch case as moveBlock above: no .revelation-block
+      // wrapper exists yet the very first time block 1 is styled before
+      // anything's ever been saved (see buildCanvasBlockDivOpenTag in
+      // markdown-compiler.js). Synthesize the same wrapper the compiler
+      // will write on save, around the slide's own untouched content, so
+      // the live preview already matches what Save will produce.
+      if (!block && id === 1 && !section.querySelector('.revelation-block')) {
+        block = document.createElement('div');
+        block.className = 'revelation-block';
+        block.dataset.canvasBlockId = '1';
+        Array.from(section.childNodes)
+          .filter((node) => !(node.nodeType === 1 && node.matches('aside.notes')))
+          .forEach((node) => block.appendChild(node));
+        section.appendChild(block);
+      }
+      if (block) {
+        // Mirrors buildCanvasBlockDivOpenTag's args-to-styles mapping in
+        // markdown-compiler.js. Every property is reassigned (not only
+        // when truthy) so turning a toggle off — e.g. un-bolding — clears
+        // the inline style instead of leaving the prior patch stuck.
+        block.style.color = style.color || '';
+        block.style.fontFamily = style.font || '';
+        block.style.fontSize = style.size || '';
+        block.style.textAlign = style.align || '';
+        block.style.fontWeight = style.bold ? 'bold' : '';
+        block.style.fontStyle = style.italic ? 'italic' : '';
+        block.style.textDecoration = style.underline ? 'underline' : '';
+        block.style.background = style.boxBg || '';
+        block.style.border = style.boxBorder || '';
+      }
+      return;
+    }
   });
 
   if (builderPreviewPeerEnabled) {
