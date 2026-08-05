@@ -376,8 +376,21 @@ function presentationIndexPlugin() {
       const watcher = chokidar.watch(presentationsDir, {
       ignored: /(^|[/\\])\../, // Ignore dotfiles
       persistent: true,
-      ignoreInitial: true,  
-      depth: 5
+      ignoreInitial: true,
+      depth: 5,
+      // Without this, a single save of a large presentation.md (this project
+      // has some pushing 1000+ lines of YAML front matter) can land as more
+      // than one raw OS-level write, and chokidar reports each as its own
+      // 'change' event. scheduleMdRebuild's 1200ms debounce only coalesces
+      // events that land within the same window — two events from one save
+      // usually do — but awaitWriteFinish is the actual right layer to fix
+      // this at: it holds the event until the file's size stops changing,
+      // so a multi-write save reliably produces exactly one raw event
+      // instead of relying on debounce timing to mask the duplicate.
+      awaitWriteFinish: {
+        stabilityThreshold: 300,
+        pollInterval: 100
+      }
     });
 
     let mdRebuildDebounceTimer = null;
