@@ -110,7 +110,24 @@ function buildCanvasBlockDivOpenTag(id, argsStr) {
   const x = parseFloat(args.x);
   const y = parseFloat(args.y);
   if (Number.isFinite(x) && Number.isFinite(y)) {
-    styles.push(`top:${y}%`, `left:${x}%`, 'transform:translate(-50%,-50%)');
+    styles.push(`top:${y}%`, `left:${x}%`);
+    // Rotate/flip (canvas builder's Arrange tab) are only ever written
+    // alongside x/y — setBlockStyleProp's rotate/flipH/flipV branch always
+    // promotes a block to freeform first — so composing them into this same
+    // transform never has to guess at an unknown zone-class transform.
+    let transform = 'translate(-50%,-50%)';
+    const rotateDeg = parseFloat(args.rotate);
+    if (Number.isFinite(rotateDeg) && rotateDeg !== 0) transform += ` rotate(${rotateDeg}deg)`;
+    if (args['flip-h'] === '1' || args['flip-v'] === '1') {
+      transform += ` scale(${args['flip-h'] === '1' ? -1 : 1},${args['flip-v'] === '1' ? -1 : 1})`;
+    }
+    styles.push(`transform:${transform}`);
+    // Explicit size (canvas builder's Size fields/resize handles), % of
+    // stage like x/y. max-width:none is required alongside width: the zone
+    // class's own max-width cap still applies to an inline width otherwise.
+    if (args.width && args.height) {
+      styles.push(`width:${args.width}%`, `height:${args.height}%`, 'max-width:none');
+    }
   }
   const styleAttr = styles.length ? ` style="${escapeAttr(styles.join(';'))}"` : '';
   return `<div class="revelation-block" data-canvas-block-id="${id}" data-zone="${escapeAttr(zone)}"${styleAttr}>`;

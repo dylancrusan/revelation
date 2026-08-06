@@ -319,6 +319,64 @@ function setupBuilderPreviewBridge(deck) {
         block.style.textDecoration = style.underline ? 'underline' : '';
         block.style.background = style.boxBg || '';
         block.style.border = style.boxBorder || '';
+
+        // Rotate/flip and explicit size (canvas builder's Arrange tab) only
+        // ever arrive alongside x/y — setBlockStyleProp/setBlockSize in
+        // canvas-editor.js always promote a block to freeform first — so
+        // mirror moveBlock's own zone/top/left reset here too. Without this,
+        // the very first rotate/resize on a block that was never separately
+        // dragged would apply a transform/size on top of whatever position
+        // its original zone class left it at, instead of the freeform
+        // top/left this same style object's x/y now implies.
+        // Explicit-position check first, not just Number.isFinite on the
+        // parsed value: Number('') is 0 (finite!), so a zone-only block
+        // (style.x/y left as the empty-string default) would otherwise be
+        // misread as real (0,0) coordinates and forced to the top-left
+        // corner — breaking its zone layout the moment any blockStyle
+        // command touches it (e.g. resyncPreviewBlocks resending style for
+        // every explicit block on each render, including zone-only ones).
+        const hasExplicitPos = style.x !== '' && style.x != null && style.y !== '' && style.y != null;
+        const x = Number(style.x);
+        const y = Number(style.y);
+        if (hasExplicitPos && Number.isFinite(x) && Number.isFinite(y)) {
+          block.dataset.zone = 'center';
+          block.style.top = y + '%';
+          block.style.left = x + '%';
+          block.style.right = 'auto';
+          block.style.bottom = 'auto';
+          let transform = 'translate(-50%,-50%)';
+          const rotateDeg = parseFloat(style.rotate);
+          if (Number.isFinite(rotateDeg) && rotateDeg !== 0) transform += ` rotate(${rotateDeg}deg)`;
+          if (style.flipH || style.flipV) transform += ` scale(${style.flipH ? -1 : 1},${style.flipV ? -1 : 1})`;
+          block.style.transform = transform;
+          if (style.width && style.height) {
+            block.style.width = style.width + '%';
+            block.style.height = style.height + '%';
+            block.style.maxWidth = 'none';
+          } else {
+            block.style.width = '';
+            block.style.height = '';
+            block.style.maxWidth = '';
+          }
+        } else {
+          // No explicit position — a zone-only block (never dragged) or one
+          // that *reverted* to a zone (e.g. undo of a drag, or an Align-grid
+          // click clearing back to a preset). Explicitly clear every inline
+          // override a prior freeform state may have left behind: inline
+          // styles always beat the zone's own CSS attribute-selector rule
+          // (data-zone="..."), so without this a block that goes from
+          // freeform back to zone-based would visually stay stuck wherever
+          // the freeform state last put it.
+          block.dataset.zone = style.zone || 'center';
+          block.style.top = '';
+          block.style.left = '';
+          block.style.right = '';
+          block.style.bottom = '';
+          block.style.transform = '';
+          block.style.width = '';
+          block.style.height = '';
+          block.style.maxWidth = '';
+        }
       }
       return;
     }
