@@ -92,7 +92,21 @@ function buildCanvasBlockDivOpenTag(id, argsStr) {
     if (eq < 0) return;
     args[pair.slice(0, eq).trim()] = pair.slice(eq + 1).trim();
   });
-  const zone = args.zone || 'center';
+  // Freeform position (x/y) always forces the "center" zone class, matching
+  // presentations.js's own moveBlock/blockStyle handlers (which patch this
+  // same override into the *live*, unsaved preview) — a freeform block's
+  // stored `zone` is whatever it was before it was ever dragged (e.g.
+  // "lowerthird") and is never updated after, but "center" is the only zone
+  // with no bottom/right of its own. Any other zone's own bottom/right (e.g.
+  // lowerthird's bottom:6%) would stay active alongside the top/left this
+  // same freeform position sets below, and a box with both top and bottom
+  // set stretches to fill the gap between them instead of sizing to its
+  // content — wildly wrong height, not just a cosmetic mismatch. Before this
+  // fix, a *freshly compiled* freeform block had that bug baked in from
+  // save, only masked once the live preview's own blockStyle patch had run
+  // — so whether it showed correctly depended on load-order timing.
+  const hasFreeformPosition = Number.isFinite(parseFloat(args.x)) && Number.isFinite(parseFloat(args.y));
+  const zone = hasFreeformPosition ? 'center' : (args.zone || 'center');
   const styles = [];
   if (args.color) styles.push(`color:${args.color}`);
   if (args.font) styles.push(`font-family:${args.font}`);

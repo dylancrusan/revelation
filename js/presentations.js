@@ -148,6 +148,62 @@ function setupBuilderPreviewBridge(deck) {
     postPreviewEvent(eventName, { indices, isOverview });
   };
 
+  // Reports each canvas block's *real*, actually-rendered position/size back
+  // to the builder, so its overlay (selection outline, resize handles,
+  // box-fill/border preview) can be pixel-exact instead of approximating
+  // this theme's fonts/line-height/kerning in a separate lookalike CSS
+  // reproduction (plugins/canvasbuilder/styles.css's .canvas-h1 etc.) —
+  // which can only ever get close, never flawless, for arbitrary text/fonts.
+  // getBoundingClientRect (not offsetWidth/Height) for every measurement
+  // here, section included: reveal.js itself renders this fixed-design-
+  // resolution deck via a CSS transform: scale(...) on an ancestor to fit
+  // the actual viewport, which getBoundingClientRect reflects but
+  // offsetWidth/Height (the pre-transform layout box) doesn't — mixing the
+  // two gives a meaningless ratio. Center (not left/top) because a rotation
+  // only ever turns a box around its own center, so it's usable even for a
+  // rotated block; width/height aren't, since getBoundingClientRect gives a
+  // *rotated* box's inflated axis-aligned bounds, not its true size — rather
+  // than reconstructing that (numerically ill-conditioned right at 45°), a
+  // rotated block is simply skipped here and the builder keeps estimating
+  // just that one, see the "rotate(" check below.
+  const postBlockGeometry = () => {
+    const section = deck.getCurrentSlide ? deck.getCurrentSlide() : null;
+    if (!section) return;
+    const sr = section.getBoundingClientRect();
+    if (!sr.width || !sr.height) return;
+    const indices = deck.getIndices ? deck.getIndices() : { h: 0, v: 0 };
+    const blocks = Array.from(section.querySelectorAll('.revelation-block'))
+      .filter((block) => !block.style.transform || !block.style.transform.includes('rotate('))
+      .map((block) => {
+        const br = block.getBoundingClientRect();
+        return {
+          id: Number(block.dataset.canvasBlockId),
+          centerX: ((br.left + br.right) / 2 - sr.left) / sr.width * 100,
+          centerY: ((br.top + br.bottom) / 2 - sr.top) / sr.height * 100,
+          width: br.width / sr.width * 100,
+          height: br.height / sr.height * 100
+        };
+      });
+    postPreviewEvent('geometry', { h: indices.h, v: indices.v, blocks });
+  };
+
+  // blockStyle arrives on *every mousemove frame* during an active drag/
+  // resize (see canvas-editor.js's onMouseMove — it streams blockStyle live
+  // so the drag is visible in this iframe before the gesture commits), so
+  // calling postBlockGeometry synchronously there would fire a geometry
+  // report — and so a full overlay re-render — on every frame too. That
+  // re-render replaces the block layer's DOM wholesale, which would orphan
+  // the very element the drag's own mousemove handler is still moving
+  // (its listeners live on `document`, not the element, so they'd keep
+  // running — just mutating a now-detached node instead of the visible
+  // one). Debouncing collapses a fast-moving drag down to one report, sent
+  // once the stream actually pauses — in practice always after mouseup.
+  let geometryReportTimer = null;
+  const scheduleBlockGeometryReport = () => {
+    if (geometryReportTimer) clearTimeout(geometryReportTimer);
+    geometryReportTimer = setTimeout(postBlockGeometry, 150);
+  };
+
   window.addEventListener('message', (event) => {
     if (event.source !== window.parent) return;
     const data = event.data || {};
@@ -378,6 +434,14 @@ function setupBuilderPreviewBridge(deck) {
           block.style.maxWidth = '';
         }
       }
+      // resyncPreviewBlocks in canvas-editor.js resends blockStyle for every
+      // explicit block on *every* builder render (any mutation at all, not
+      // just style edits — see its own comment), so this is the one place
+      // that reliably catches a position/size/rotation change and reports
+      // the result back for the overlay to snap to. Debounced (see
+      // scheduleBlockGeometryReport above) since this same command also
+      // streams live during an in-progress drag/resize.
+      scheduleBlockGeometryReport();
       return;
     }
 
@@ -427,10 +491,19 @@ function setupBuilderPreviewBridge(deck) {
 
   deck.on('ready', () => {
     postCurrentState('ready');
+    postBlockGeometry();
   });
   deck.on('slidechanged', () => {
     postCurrentState('slidechanged');
+    postBlockGeometry();
   });
+  // Custom web fonts (this theme's own — see css/source/*.scss's font
+  // imports) can finish loading and reflow text after 'ready' already fired
+  // and blockStyle's own resync has nothing new to trigger on — this is the
+  // one case those two misses, so it gets its own explicit catch-all.
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => postBlockGeometry());
+  }
   deck.on('overviewshown', () => {
     postCurrentState('overview');
   });

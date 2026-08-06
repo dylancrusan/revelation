@@ -723,6 +723,20 @@ cite.attrib {
   // short the text is — width is set per-zone only where a max-width cap
   // is needed to keep long text from overflowing the slide.
   width: max-content;
+  // Keynote-style text inset: without this, a box-bg/box-border fill hugs
+  // the text glyphs with zero breathing room, making a correctly-sized box
+  // look like it needs resizing. % of the containing block's width, not
+  // em — em is relative to this div's own font-size, which for a heading
+  // is a small inherited base far below the heading's own much-larger
+  // rendered size (headings get their size from an explicit override on
+  // the h1-h6 element itself, never inherited by this wrapper div), so an
+  // em-based inset here would look disproportionately thin around a
+  // heading versus body text. % of stage/slide width matches
+  // plugins/canvasbuilder/styles.css's .canvas-text-block padding, which
+  // mirrors this for the editor overlay — the one unit both already agree
+  // on pixel-for-pixel (unlike font-size, which the two contexts don't
+  // calibrate the same way — see that file's own comment on this).
+  padding: 1.5% 2.5%;
 }
 
 // reveal.js's own base theme (node_modules/reveal.js/css/theme/template/
@@ -750,7 +764,15 @@ cite.attrib {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  max-width: 90%;
+  // +5% over the original 90%: box-sizing:border-box means the block's own
+  // horizontal padding (2.5% each side, see .revelation-block above) eats
+  // into this cap instead of adding outside it — left uncompensated, that
+  // shrinks the text's actual wrapping width, which can push a line that
+  // used to fit onto two, growing the block tall enough to collide with
+  // whatever's below/above it. This keeps the text's effective wrapping
+  // width identical to before the padding existed; only the visual inset
+  // around it is new.
+  max-width: 95%;
   text-align: center;
 }
 
@@ -764,7 +786,7 @@ cite.attrib {
   top: 6%;
   left: 50%;
   transform: translateX(-50%);
-  max-width: 80%;
+  max-width: 85%; // +5%, see "center" above
   text-align: center;
 }
 
@@ -772,47 +794,47 @@ cite.attrib {
   bottom: 6%;
   left: 50%;
   transform: translateX(-50%);
-  max-width: 80%;
+  max-width: 85%; // +5%, see "center" above
   text-align: center;
 }
 
 .reveal .revelation-block[data-zone="shiftright"] {
   top: 50%;
   right: 4%;
-  max-width: 48%;
+  max-width: 53%; // +5%, see "center" above
   transform: translateY(-50%);
 }
 
 .reveal .revelation-block[data-zone="shiftleft"] {
   top: 50%;
   left: 4%;
-  max-width: 48%;
+  max-width: 53%; // +5%, see "center" above
   transform: translateY(-50%);
 }
 
 .reveal .revelation-block[data-zone="topleft"] {
   top: 6%;
   left: 4%;
-  max-width: 48%;
+  max-width: 53%; // +5%, see "center" above
 }
 
 .reveal .revelation-block[data-zone="topright"] {
   top: 6%;
   right: 4%;
-  max-width: 48%;
+  max-width: 53%; // +5%, see "center" above
   text-align: right;
 }
 
 .reveal .revelation-block[data-zone="bottomleft"] {
   bottom: 6%;
   left: 4%;
-  max-width: 48%;
+  max-width: 53%; // +5%, see "center" above
 }
 
 .reveal .revelation-block[data-zone="bottomright"] {
   bottom: 6%;
   right: 4%;
-  max-width: 48%;
+  max-width: 53%; // +5%, see "center" above
   text-align: right;
 }
 
