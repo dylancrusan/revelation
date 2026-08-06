@@ -184,6 +184,39 @@ function setupBuilderPreviewBridge(deck) {
           height: br.height / sr.height * 100
         };
       });
+
+    // Block 1 without its own canvas_block_1 marker (never dragged/styled in
+    // the canvas builder) has no .revelation-block wrapper above to measure —
+    // its real text still sits directly in `section`, the same "implicit
+    // single block" plugins/canvasbuilder/canvas-editor.js's parseBodyBlocks
+    // falls back to for a marker-less body. Without a report, that overlay is
+    // permanently stuck estimating this block's size/position from its own
+    // approximate local CSS instead of the real rendered box. Union the
+    // bounding boxes of section's own direct in-flow content (skipping
+    // presenter notes, and any other block's own wrapper) so the overlay can
+    // be pixel-exact here too, even before block 1's first edit synthesizes a
+    // real wrapper (see findOrSynthesizeBlock below, which closes this same
+    // gap for *writes* — this closes it for this read-only report).
+    if (!blocks.some((b) => b.id === 1)) {
+      const contentEls = Array.from(section.children)
+        .filter((el) => !el.matches('aside.notes, .revelation-block'));
+      const rects = contentEls.map((el) => el.getBoundingClientRect())
+        .filter((r) => r.width > 0 && r.height > 0);
+      if (rects.length) {
+        const left = Math.min(...rects.map((r) => r.left));
+        const right = Math.max(...rects.map((r) => r.right));
+        const top = Math.min(...rects.map((r) => r.top));
+        const bottom = Math.max(...rects.map((r) => r.bottom));
+        blocks.push({
+          id: 1,
+          centerX: ((left + right) / 2 - sr.left) / sr.width * 100,
+          centerY: ((top + bottom) / 2 - sr.top) / sr.height * 100,
+          width: (right - left) / sr.width * 100,
+          height: (bottom - top) / sr.height * 100
+        });
+      }
+    }
+
     postPreviewEvent('geometry', { h: indices.h, v: indices.v, blocks });
   };
 
@@ -228,6 +261,21 @@ function setupBuilderPreviewBridge(deck) {
 
     if (command === 'toggleOverview' && typeof deck.toggleOverview === 'function') {
       deck.toggleOverview();
+      return;
+    }
+
+    if (command === 'requestGeometry') {
+      // Position/style commands (moveBlock/blockStyle below) always trigger
+      // their own follow-up report via scheduleBlockGeometryReport once they
+      // patch this iframe's DOM — but a content-only edit (canvas-editor.js's
+      // commitEdit/splitLineIntoNewBlock) never sends either of those, since
+      // it doesn't patch anything here (this iframe only ever reflects the
+      // last *saved* file's text, edits included). Without an explicit
+      // request, a block with no measured geometry yet (or one that just had
+      // it cleared by the edit) stays on the builder's cruder size estimate
+      // until the next unrelated position/style change or slide navigation
+      // happens to trigger a report as a side effect.
+      postBlockGeometry();
       return;
     }
 
