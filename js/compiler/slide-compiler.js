@@ -48,9 +48,21 @@ export function createSlideCompiler(options = {}) {
   }
 
   function markContentLine(line) {
-    if (line.trim() !== '' && !line.trim().match(/^<!--.*?-->$/)) {
-      blankslide = false;
-    }
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.match(/^<!--.*?-->$/)) return;
+    // The canvas builder's own block wrapper (see buildCanvasBlockDivOpenTag/
+    // closeBlock in markdown-compiler.js's expandCanvasBlockMarkers) is
+    // structural — injected by an earlier compiler pass around whatever the
+    // user actually wrote, not authored content itself. Without this, a
+    // heading that's the first line *inside* a freshly opened block (the
+    // ordinary shape once a block's first line is a heading, which the
+    // canvas builder saves as soon as that block becomes explicit) reads as
+    // "some content, then a heading" and wrongly trips newSlideOnHeading's
+    // auto-break — splitting the heading (and everything after it) out from
+    // under the wrapper, so it's saved as an orphaned fragment that never
+    // displays, even though the now-empty wrapper still renders in place.
+    if (trimmed.startsWith('<div class="revelation-block"') || trimmed === '</div>') return;
+    blankslide = false;
   }
 
   function detectAutoSlide(line) {
