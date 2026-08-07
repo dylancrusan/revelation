@@ -504,6 +504,57 @@ function setupBuilderPreviewBridge(deck) {
       return;
     }
 
+    if (command === 'blockContent') {
+      // Keynote-style live typing already shows the new text via the canvas
+      // builder's own transparent contenteditable overlay while a block is
+      // actively being edited (see the setEditing command above) — this
+      // patches the real text *this iframe* shows once that overlay is
+      // dismissed (commitEdit) or a text edit is undone/redone, so it
+      // doesn't fall back to whatever was last *saved* in the meantime.
+      // resyncPreviewBlockContent in canvas-editor.js resends this for any
+      // block whose content changed on *every* builder render (not just the
+      // edit that changed it), the same way resyncPreviewBlocks does for
+      // blockStyle, since undo/redo goes through the host's own undo-manager
+      // and never calls commitEdit directly.
+      const id = payload.id;
+      const html = typeof payload.html === 'string' ? payload.html : '';
+      if (id == null) return;
+      const section = deck.getCurrentSlide();
+      if (!section) return;
+      const existingBlock = section.querySelector('.revelation-block[data-canvas-block-id="' + id + '"]');
+      if (!existingBlock && id === 1 && !section.querySelector('.revelation-block')) {
+        // Block 1 with no wrapper yet has never been dragged/styled (see
+        // findOrSynthesizeBlock's own comment above) — it's still plain
+        // in-flow slide content, and Save will keep it that way (no
+        // canvas_block_1 marker written — see serializeBodyBlocks in
+        // canvas-editor.js) as long as it stays untouched by moveBlock/
+        // blockStyle. Synthesizing the position:absolute canvas-block
+        // wrapper here the way those two do would visibly diverge from
+        // that: .revelation-block's width:max-content has no zone max-width
+        // to cap it without one of those commands also setting data-zone,
+        // so the text would render as one unbounded, unwrapped line instead
+        // of the normally-wrapped, normally-centered paragraph Save
+        // actually produces. Replace the section's own plain content
+        // directly instead, preserving that normal in-flow layout.
+        const notes = section.querySelector('aside.notes');
+        Array.from(section.childNodes)
+          .filter((node) => node !== notes)
+          .forEach((node) => node.remove());
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = html;
+        while (wrapper.firstChild) section.insertBefore(wrapper.firstChild, notes || null);
+      } else {
+        const block = findOrSynthesizeBlock(section, id);
+        if (block) block.innerHTML = html;
+      }
+      // A text change almost always resizes the block (different line
+      // count/wrap) — same follow-up report blockStyle sends below, for the
+      // same reason: keeps the canvas overlay's hit-box/handles from
+      // drifting away from the real rendered size.
+      scheduleBlockGeometryReport();
+      return;
+    }
+
     if (command === 'reorderBlocks') {
       // Front/Back/Forward/Backward (plugins/canvasbuilder/canvas-editor.js).
       // .revelation-block divs are all position:absolute with no explicit
