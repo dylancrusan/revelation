@@ -281,7 +281,18 @@ function setupBuilderPreviewBridge(deck) {
 
     if (command === 'layout') {
       deck.layout?.();
-      window.setTimeout(() => deck.layout?.(), 120);
+      window.setTimeout(() => {
+        deck.layout?.();
+        // The canvas builder's overlay hit-boxes (measuredGeometry) are only
+        // as current as the last geometry report — without this, a resize
+        // that corrects reveal's own scale (what this command exists for)
+        // leaves the overlay's drag/select targets sized for the *stale*
+        // pre-resize render until some unrelated position/style change or
+        // slide nav happens to trigger a report as a side effect. Posted
+        // after this second, settled layout() (not the first) so it reflects
+        // the corrected geometry rather than an in-between state.
+        postBlockGeometry();
+      }, 120);
       postCurrentState('slidechanged');
       return;
     }
