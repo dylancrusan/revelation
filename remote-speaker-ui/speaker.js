@@ -79,7 +79,10 @@ socket.on('connect', () => {
 function colorListMarkers(container) {
     container.querySelectorAll('li').forEach(li => {
         const kids = [...li.childNodes].filter(n => n.nodeType === Node.ELEMENT_NODE);
-        const span = kids.length === 1 && (kids[0].tagName === 'SPAN' || kids[0].tagName === 'FONT') ? kids[0] : null;
+        const onlyWhitespaceText = [...li.childNodes]
+            .filter(n => n.nodeType === Node.TEXT_NODE)
+            .every(n => !n.textContent.trim());
+        const span = onlyWhitespaceText && kids.length === 1 && (kids[0].tagName === 'SPAN' || kids[0].tagName === 'FONT') ? kids[0] : null;
         if (span && span.style.color) li.style.color = span.style.color;
     });
 }

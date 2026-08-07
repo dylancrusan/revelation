@@ -63,7 +63,10 @@ window.slideControl = window.slideControl || (function () {
         function colorListMarkers(container) {
             container.querySelectorAll('li').forEach(function(li) {
                 var kids = Array.from(li.childNodes).filter(function(n) { return n.nodeType === Node.ELEMENT_NODE; });
-                var span = kids.length === 1 && (kids[0].tagName === 'SPAN' || kids[0].tagName === 'FONT') ? kids[0] : null;
+                var onlyWhitespaceText = Array.from(li.childNodes)
+                    .filter(function(n) { return n.nodeType === Node.TEXT_NODE; })
+                    .every(function(n) { return !n.textContent.trim(); });
+                var span = onlyWhitespaceText && kids.length === 1 && (kids[0].tagName === 'SPAN' || kids[0].tagName === 'FONT') ? kids[0] : null;
                 if (span && span.style.color) li.style.color = span.style.color;
             });
         }
