@@ -760,6 +760,36 @@ cite.attrib {
   color: inherit;
 }
 
+// Same specificity fight as color above, but font-family/font-size can't be
+// handed back unconditionally the same way: unlike color (always written to
+// the marker, see BLOCK_STYLE_DEFAULTS in canvas-editor.js), a block with no
+// font/size override has no inline font-family/font-size on this div at all
+// (markdown-compiler.js only pushes those when args.font/args.size is set).
+// An unconditional `inherit` here would replace reveal's own per-level
+// heading font/size (--r-heading-font, --r-heading1..4-size) with whatever
+// this div inherits from the plain slide body further up, even for a heading
+// that never asked for anything but the theme default. Matching on the
+// wrapper's own style attribute — only present when the compiler actually
+// wrote that property — keeps untouched headings themed exactly as before,
+// and only hands inheritance back to a block that explicitly opted in.
+.reveal .revelation-block[style*="font-family"] h1,
+.reveal .revelation-block[style*="font-family"] h2,
+.reveal .revelation-block[style*="font-family"] h3,
+.reveal .revelation-block[style*="font-family"] h4,
+.reveal .revelation-block[style*="font-family"] h5,
+.reveal .revelation-block[style*="font-family"] h6 {
+  font-family: inherit;
+}
+
+.reveal .revelation-block[style*="font-size"] h1,
+.reveal .revelation-block[style*="font-size"] h2,
+.reveal .revelation-block[style*="font-size"] h3,
+.reveal .revelation-block[style*="font-size"] h4,
+.reveal .revelation-block[style*="font-size"] h5,
+.reveal .revelation-block[style*="font-size"] h6 {
+  font-size: inherit;
+}
+
 .reveal .revelation-block[data-zone="center"] {
   top: 50%;
   left: 50%;

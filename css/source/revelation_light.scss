@@ -38,9 +38,16 @@ $heading4-size: 2.0em;
 @import "reveal.js/css/theme/template/settings";
 @import "./custom/layouts.scss";
 
-// Include theme-specific fonts
+// Include theme-specific fonts. All 5 bundled font families are imported
+// here (not just this theme's own Inter/Noto Serif) so the canvas builder's
+// per-block font picker (plugins/canvasbuilder/builder.js) can offer any of
+// them and have the @font-face actually loaded — see revelation_dark.scss's
+// matching comment.
 @import url(./fonts/inter/inter.css);
 @import url(./fonts/noto_serif/noto_serif.css);
+@import url(./fonts/source-sans-pro/source-sans-pro.css);
+@import url(./fonts/jet_brains_mono/jet_brains_mono.css);
+@import url(./fonts/league-gothic/league-gothic.css);
 
 // Change text colors against light slide backgrounds
 @include light-bg-text-color(#14171c);
