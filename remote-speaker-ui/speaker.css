@@ -150,6 +150,20 @@ body.notes-inverted #notes {
     -webkit-overflow-scrolling: touch;
 }
 
+/* The page's universal `* { margin: 0; padding: 0; }` reset (top of this
+   file) zeroes out <ol>/<ul>'s default padding-left, which is exactly where
+   the browser reserves room to draw list markers (list-style-position is
+   "outside" by default) — with no room reserved, the "1." "2." "3." numbers
+   for presenter-notes numbered lists render off to the left of the content
+   box and get clipped by #notes' own overflow-y: auto (which clips
+   overflow-x too). Restoring that padding here brings the numbers back
+   without touching anything else the reset is there for. */
+#notes ol,
+#notes ul {
+    padding-left: 32px;
+    list-style-position: outside;
+}
+
 /* ── Progress ────────────────────────────────────────── */
 #progress-bar {
     height: 3px;
